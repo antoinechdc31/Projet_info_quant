@@ -5,11 +5,42 @@ import math
 
 class Node :
 
-    def __init__(self, underlying, tree) :
+    def __init__(self, underlying, tree, up = None, down = None) :
         self.tree = tree
         self.underlying = underlying
+        self.up = up
+        self.down = down
         self.next = self.calcul_next()
+        self.Nup = None
+        self.Ndown = None
+        self.Nmid = None
         self.proba = self.calcul_proba()
+        pass
+
+    def create_brick(self, trunc, direction = "up") :
+
+        Smid, Sup, Sdown = self.next
+
+        if trunc :
+            self.Nmid = Node(Smid, self.tree, None, None)
+            self.Nup = Node(Sup, self.tree, None, self.Nmid)
+            self.Ndown = Node(Sdown, self.tree, self.Nmid, None)
+            self.Nmid.up = self.Nup
+            self.Nmid.down = self.Ndown
+        elif direction == "up" and self.down is not None:
+            self.Ndown = self.down.Nmid
+            self.Nmid = self.down.Nup
+            self.Nup = Node(Sup, self.tree, down=self.Nmid)
+            self.Nmid.up = self.Nup
+            return
+        # Si on construit en venant du haut
+        elif direction == "down" and self.up is not None:
+            self.Nup = self.up.Nmid
+            self.Nmid = self.up.Ndown
+            self.Ndown = Node(Sdown, self.tree, up=self.Nmid)
+            self.Nmid.down = self.Ndown
+            return
+
         pass
 
     def calcul_next(self) :

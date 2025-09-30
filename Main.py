@@ -30,6 +30,19 @@ def test_tree():
     tree.price_option(option)
     print(black_scholes(S0 = 100, K = 80, T = 1, r = 0.03, sigma = 0.2, type = "call"))
 
+def test_tree_2() :
+        
+    # Paramètres de marché et d'arbre
+    market = Market(S0=100, r=0.03, sigma=0.2)
+    tree = Tree(market, N=100, delta_t=1/100)
+    
+    option = Option(K=100, mat=1, opt_type="call", style="european")
+
+    prix = tree.price_option_recursive(option)
+    print("Prix trinomial (recursive) =", prix)
+
+    pass
+
 def test_tree_n_grand() :
     market = Market(S0 = 100, r = 0.03, sigma = 0.2)
     tree = Tree(market, N=100, delta_t=1/100)
@@ -52,5 +65,18 @@ def test_tree_american() :
 
     print(price1, price2)
 
+def test_tree_2_bs() :
+    # Paramètres de marché et d'arbre
+    market = Market(S0=100, r=0.03, sigma=0.2)
+    tree = Tree(market, N=100, delta_t=1/100)
+    option = Option(K=100, mat=1, opt_type="call", style="european")
+
+    prix_tree = tree.price_option_recursive(option)
+    prix_bs = black_scholes(S0=100, K=100, T=1, r=0.03, sigma=0.2, type="call")
+
+    print("Prix trinomial (recursive) =", prix_tree)
+    print("Prix Black–Scholes        =", prix_bs)
+
+
 if __name__ == "__main__":
-    test_tree_n_grand()
+    test_tree_2_bs()
