@@ -3,3 +3,4 @@ class Market :
         self.S0 = S0 
         self.r = r    
         self.sigma = sigma  
+        
