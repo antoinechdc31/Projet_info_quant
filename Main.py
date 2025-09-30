@@ -3,6 +3,8 @@ from Tree import Tree
 from Node import Node
 from BlackScholes import black_scholes
 from Option import Option
+import time
+import matplotlib.pyplot as plt
 
 def test_node_prices():
     market = Market(S0=100, r=0.03, sigma=0.2)
@@ -68,7 +70,7 @@ def test_tree_american() :
 def test_tree_2_bs() :
     # Paramètres de marché et d'arbre
     market = Market(S0=100, r=0.03, sigma=0.2)
-    tree = Tree(market, N=100, delta_t=1/100)
+    tree = Tree(market, N=5000, delta_t=1/5000)
     option = Option(K=100, mat=1, opt_type="call", style="european")
 
     prix_tree = tree.price_option_recursive(option)
@@ -77,6 +79,67 @@ def test_tree_2_bs() :
     print("Prix trinomial (recursive) =", prix_tree)
     print("Prix Black–Scholes        =", prix_bs)
 
+def test_diff_temps_calcul():
+    market = Market(S0=100, r=0.03, sigma=0.2)
+    tree = Tree(market, N=100, delta_t=1/100)
+    option = Option(K=100, mat=1, opt_type="call", style="european")
+        
+    start = time.time()   # timestamp au début
+
+    prix_tree = tree.price_option_recursive(option)
+
+    end = time.time()     # timestamp à la fin
+    elapsed1 = end - start
+
+    start = time.time()
+
+    price2 = tree.price_option(option)
+
+    end = time.time()     # timestamp à la fin
+    elapsed2 = end - start
+
+    prix_bs = black_scholes(S0=100, K=100, T=1, r=0.03, sigma=0.2, type="call")
+
+    print("Prix de l'arbre brique : ", prix_tree, " avec le tps ", elapsed1)
+    print("Prix de l'arbre classique", price2, " avec le temps ", elapsed2 ) # on voit que l'arbre brique est plus court
+
+def benchmark_tree(max_N=100, step=10):
+    market = Market(S0=100, r=0.03, sigma=0.2)
+    option = Option(K=100, mat=1, opt_type="call", style="european")
+
+    Ns = list(range(10, max_N+1, step))  # ex: [10, 20, 30, ..., 100]
+    times_recursive = []
+    times_classic = []
+
+    for N in Ns:
+        tree = Tree(market, N=N, delta_t=1/N)
+
+        # Méthode récursive (arbre brique)
+        start = time.perf_counter()
+        tree.price_option_recursive(option)
+        end = time.perf_counter()
+        times_recursive.append(end - start)
+
+        tree = Tree(market, N=N, delta_t=1/N)
+
+        # Méthode classique (niveau par niveau)
+        start = time.perf_counter()
+        tree.price_option(option)
+        end = time.perf_counter()
+        times_classic.append(end - start)
+
+        print(f"N={N} -> recursive={times_recursive[-1]:.6f}s, classic={times_classic[-1]:.6f}s")
+
+    # Tracer les résultats
+    plt.figure(figsize=(8,5))
+    plt.plot(Ns, times_recursive, marker="o", label="Arbre brique (récursif)")
+    plt.plot(Ns, times_classic, marker="s", label="Arbre classique (niveau)")
+    plt.xlabel("N (nombre de pas)")
+    plt.ylabel("Temps de calcul (secondes)")
+    plt.title("Comparaison des temps de calcul")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 if __name__ == "__main__":
-    test_tree_2_bs()
+    benchmark_tree()

@@ -2,6 +2,8 @@ import math
 from Market import Market
 from Node import Node
 from Option import Option
+import sys
+sys.setrecursionlimit(5000)  # limite de recursion car on avait un pb de dépassement de max depth
 
 class Tree : 
 
@@ -16,29 +18,38 @@ class Tree :
     def build_columns(self, node_trunc) :
 
         # current_node = node_trunc
-        node_trunc.create_brick(True, direction = "up")
-        current_node = node_trunc.up
+        node_trunc.create_brick(True, direction = "up") # on crée la brick du tronc, la premiere brick de la colonne
+        current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
+        # c'est à dire :
+        #           Node up
+        #             |     Nup create avec create_bric du tronc
+        #             |   /
+        #           Trunc --- Nmid
+        #             |  \
+        #             |    Ndown 
+        #           Node down
 
-        while current_node is not None:
-            current_node.create_brick(False, direction = "up")
-            current_node = current_node.up
+        while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
+            current_node.create_brick(False, direction = "up") # on crée la brique avec comme direction Up
+            current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
         
-        current_node = node_trunc.down
+        current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
+        # avec comme diréction down
 
         while current_node is not None:
             current_node.create_brick(False, direction = "down")
             current_node = current_node.down
 
-        future_node_trunc = node_trunc.Nmid
+        future_node_trunc = node_trunc.Nmid # on recupere le tronc de la prochaine colonne pour lui envoyer
 
         return future_node_trunc
 
-    def tree_construction2(self) :
-        node_trunc = self.root
+    def tree_construction2(self) : # creation de l'arbre avec la méthode brique
+        node_trunc = self.root # on part de la root
 
-        for i in range(1, self.N + 1) :
+        for i in range(1, self.N + 1) : # puis pour chaque niveau souhaité
 
-            node_trunc = self.build_columns(node_trunc)
+            node_trunc = self.build_columns(node_trunc) # on crée une colonne
 
         pass
 
@@ -53,33 +64,29 @@ class Tree :
         if node is None : # si le noeud n'existe pas on retourne 0
             return 0.0
 
-        # clé unique pour un nœud
-        key = (id(node), t) 
-        # memo pour se souvenir des anciennes valeur caculée
+        key = (id(node), t) # clé unique pour un nœud
+        # puis on crée un memo pour se souvenir des anciennes valeur caculée, cela permet de gagner bcp de temps
+        # et d'eviter de calculer plusieurs fois les memes valeurs
         if key in memo :
-            return memo[key]
+            return memo[key] # si cela existe, on retourne sa valeur qui a deja ete calculée
 
         if t == self.N : # si c'est la derniere colonne, on retourne le payoff
             val = option.payoff(node.underlying)
         else : # sinon on calcule avec la formule donnée par le cours -> DF * sum(V * proba)
-            Vmid  = self._price_node(node.Nmid,  t+1, option, memo)
-            Vup   = self._price_node(node.Nup,   t+1, option, memo)
-            Vdown = self._price_node(node.Ndown, t+1, option, memo)
+            Vmid  = self.price_node(node.Nmid,  t+1, option, memo)
+            Vup   = self.price_node(node.Nup,   t+1, option, memo)
+            Vdown = self.price_node(node.Ndown, t+1, option, memo)
+            # applicatio de la formule
+            cont_value = (node.proba[0]*Vmid + node.proba[1]*Vup + node.proba[2]*Vdown) * math.exp(-self.market.r * self.dt)
 
-            cont_value = (
-                node.proba[0]*Vmid +
-                node.proba[1]*Vup +
-                node.proba[2]*Vdown
-            ) * math.exp(-self.market.r * self.dt)
-
-            if option.style.lower() == "american":
+            if option.style.lower() == "american" : # si c'est une américaine, on verifie le max entre le payoff actuel et la valeur calculée
                 val = max(option.payoff(node.underlying), cont_value)
             else:
-                val = cont_value
+                val = cont_value # si c'est européenne on retourn e juste sa valeur
 
-        memo[key] = val
+        memo[key] = val # on ajoute la valeur dans le mémo
 
-        return val
+        return val # puis on retourne cette valeur
 
     
     def tree_construction(self) :
@@ -125,8 +132,8 @@ class Tree :
             # print(niveau[i-1])
             for j, noeud in enumerate(niveau[i-1]) :
 
-                print("niveau ", i - 1)
-                print(j, noeud)
+                # print("niveau ", i - 1)
+                # print(j, noeud)
 
                 Pmid, Pup, Pdown = noeud.proba # on recupere les probas du noeud (grace à la classe noeud)
                 DF = math.exp( - self.market.r * self.dt) # calcul du DF comme dans les slide
@@ -141,7 +148,7 @@ class Tree :
                 list_val.append(valeur) # on ajoute la valeur calculée pour la stocker pour les prochains niveaux
 
             list_payoff = list_val  # on remplace pour l'étape suivante
-            print(list_payoff)
+            # print(list_payoff)
 
         return list_payoff[0] # a la fin on a la derniere valeur
 
