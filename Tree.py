@@ -123,26 +123,17 @@ class Tree :
         # niveau t_N-1 etc
 
         for i in range(len(niveau) - 1, 0 , -1) :
-
             list_val = []
-            # print(niveau[i-1])
+        
             for j, noeud in enumerate(niveau[i-1]) :
-
-                #print("niveau ", i - 1)
-                #print(j, noeud)
-
                 Pmid, Pup, Pdown = noeud.proba # on recupere les probas du noeud (grace à la classe noeud)
                 DF = math.exp( - self.market.r * self.dt) # calcul du DF comme dans les slide
-   
                 valeur = DF * ( Pdown * list_payoff[ j] + Pmid * list_payoff[j + 1] + Pup * list_payoff[j + 2 ] )
-                # la valeur vaut le DF fois la somme des proba * nv d'avant
-
+                # la valeur vaut le DF fois la  sommedes proba * nv d'avant
                 if option.style == "american":
                     valeur = max(valeur, option.payoff(noeud.underlying)) # pour chaque noeuf la valeur est le max entre ces deux quantités
                     # valeur hold et la valeur d'exercice avec le payoff
-
                 list_val.append(valeur) # on ajoute la valeur calculée pour la stocker pour les prochains niveaux
-
             list_payoff = list_val  # on remplace pour l'étape suivante
             #print(list_payoff)
 

@@ -5,6 +5,7 @@ from BlackScholes import black_scholes
 from Option import Option
 import time
 import matplotlib.pyplot as plt
+import numpy as np
 
 def test_node_prices():
     market = Market(S0=100, r=0.03, sigma=0.2)
@@ -36,7 +37,7 @@ def test_tree_2() :
         
     # Paramètres de marché et d'arbre
     market = Market(S0=100, r=0.03, sigma=0.2)
-    tree = Tree(market, N=100, delta_t=1/100)
+    tree = Tree(market, N=1, delta_t=1/1)
     
     option = Option(K=100, mat=1, opt_type="call", style="european")
 
@@ -118,5 +119,94 @@ def benchmark_tree_times():
     plt.show()
 
 
+def convergence_recursive():
+    Ns = [5, 10, 20, 50, 100, 200, 400, 500, 700, 900,1000]  # timesteps testés
+    errors = []
+
+    # Prix de référence Black-Scholes
+    prix_bs = black_scholes(S0=100, K=100, T=1, r=0.03, sigma=0.2, type="call")
+
+    for N in Ns:
+        market = Market(S0=100, r=0.03, sigma=0.2)
+        tree = Tree(market, N=N, delta_t=1/N)
+        option = Option(K=100, mat=1, opt_type="call", style="european")
+
+        prix_tree = tree.price_option_recursive(option)
+
+        # erreur absolue
+        err = abs(prix_tree - prix_bs)
+        errors.append(err)
+
+    # Plot
+    plt.figure(figsize=(8,5))
+    plt.plot(Ns, errors, marker='o', label="Erreur |Prix_tree - Prix_BS|")
+    plt.xlabel("Timesteps (N)")
+    plt.ylabel("Erreur absolue")
+    plt.title("Convergence de la méthode récursive vers Black–Scholes")
+    plt.yscale("log")  # échelle log pour mieux voir la décroissance
+    plt.grid(True, which="both", ls="--")
+    plt.legend()
+    plt.show()
+
+def compare_tree_bs_vs_strike():
+    Ks = np.linspace(89, 109, 100)  # strikes testés
+    prix_tree = []
+    prix_bs = []
+    diffs = []
+
+    market = Market(S0=100, r=0.03, sigma=0.2)
+    option_template = {"mat":1, "opt_type":"call", "style":"european"}
+
+    for K in Ks:
+        tree = Tree(market, N=400, delta_t=1/400)
+        option = Option(K=K, **option_template)
+
+        p_tree = tree.price_option_recursive(option)
+        p_bs = black_scholes(S0=100, K=K, T=1, r=0.03, sigma=0.2, type="call")
+
+        prix_tree.append(p_tree)
+        prix_bs.append(p_bs)
+        diffs.append(p_tree - p_bs)
+
+    prix_tree = np.array(prix_tree)
+    prix_bs = np.array(prix_bs)
+    diffs = np.array(diffs)
+
+    # Approximation de la pente (dérivée ≈ delta numérique)
+    slope_tree = np.gradient(prix_tree, Ks)
+    slope_bs = np.gradient(prix_bs, Ks)
+
+    # --- Graphique 1 : prix + pentes ---
+    plt.figure(figsize=(9,6))
+    plt.plot(Ks, prix_tree, label="Trinomial (recursive)")
+    plt.plot(Ks, prix_bs, label="Black–Scholes")
+    plt.xlabel("Strike K")
+    plt.ylabel("Prix de l’option")
+    plt.title("Prix en fonction du strike")
+    plt.grid(True)
+    plt.legend()
+
+    # Ajouter les pentes sur le même graphe
+    plt.twinx()
+    plt.plot(Ks, slope_tree, color="blue", alpha=0.6, label="Pente Tree")
+    plt.plot(Ks, slope_bs, color="orange", alpha=0.6, label="Pente BS")
+    plt.ylabel("Pente (∂Prix/∂K)")
+    plt.legend(loc="lower right")
+
+    plt.show()
+
+    # --- Graphique 2 : différence ---
+    plt.figure(figsize=(8,5))
+    plt.plot(Ks, diffs, marker="o", label="Prix Tree - Prix BS")
+    plt.axhline(0, color="black", linestyle="--")
+    plt.xlabel("Strike K")
+    plt.ylabel("Écart de prix")
+    plt.title("Écart entre Trinomial récursif et Black–Scholes")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+
+
 if __name__ == "__main__":
-    benchmark_tree_times()
+    compare_tree_bs_vs_strike()
