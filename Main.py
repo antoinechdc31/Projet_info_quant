@@ -86,7 +86,8 @@ def test_tree_2_bs() :
     print("Temps calcul arbre trinomial =",end_2 - start_2)
 
 def benchmark_tree_times():
-    Ns = [10, 20, 50, 100, 200, 400, 800]  # différents timesteps
+    # Plus de points : entre 10 et 1000
+    Ns = np.unique(np.logspace(1, 3, num=15, dtype=int))
     times_recursive = []
     times_iterative = []
 
@@ -107,16 +108,28 @@ def benchmark_tree_times():
         end = time.time()
         times_iterative.append(end - start)
 
-    # Plot
+    # Conversion log-log pour régression
+    logN = np.log(Ns)
+    logT_rec = np.log(times_recursive)
+    logT_iter = np.log(times_iterative)
+
+    # Régression linéaire (moindre carrés)
+    slope_rec, intercept_rec = np.polyfit(logN, logT_rec, 1)
+    slope_iter, intercept_iter = np.polyfit(logN, logT_iter, 1)
+
+    # Plot log-log
     plt.figure(figsize=(8,5))
-    plt.plot(Ns, times_recursive, marker='o', label="Recursive")
-    plt.plot(Ns, times_iterative, marker='o', label="Iterative")
+    plt.loglog(Ns, times_recursive, marker='o', label=f"Recursive (pente ~ {slope_rec:.2f})")
+    plt.loglog(Ns, times_iterative, marker='o', label=f"Iterative (pente ~ {slope_iter:.2f})")
     plt.xlabel("Timesteps (N)")
     plt.ylabel("Temps de calcul (secondes)")
-    plt.title("Comparaison des vitesses de calcul des arbres")
+    plt.title("Comparaison des vitesses de calcul des arbres (log-log)")
     plt.legend()
-    plt.grid(True)
+    plt.grid(True, which="both", ls="--")
     plt.show()
+
+    print(f"Pente (complexité) - Recursive : {slope_rec:.2f}")
+    print(f"Pente (complexité) - Iterative : {slope_iter:.2f}")
 
 
 def convergence_recursive():
@@ -206,7 +219,21 @@ def compare_tree_bs_vs_strike():
     plt.legend()
     plt.show()
 
+def test_avec_div() :
+    market = Market(S0=50, r= 0.7, sigma=0.8)
+    tree = Tree(market, N=1000, delta_t=1/1000)
+    option = Option(K=60, mat=1, opt_type="call", style="european")
 
+    prix_euro = tree.price_option_recursive(option)
+    print(prix_euro)
+
+    prix_bs = black_scholes(S0=50, K=60, T=1, r=0.7, sigma=0.8, type="call")
+
+    print("Prix de l'arbre brique : ", prix_euro)
+    print("Prix de l'arbre classique", prix_bs ) # on voit que l'arbre brique est plus court
 
 if __name__ == "__main__":
-    compare_tree_bs_vs_strike()
+    #compare_tree_bs_vs_strike()
+    #test_avec_div()
+    #convergence_recursive()
+    benchmark_tree_times()
