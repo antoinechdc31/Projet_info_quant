@@ -2,49 +2,48 @@ import Tree
 import Market
 import math
 
-
 class Node :
 
-    def __init__(self, underlying, tree, up = None, down = None) :
+    def __init__(self, underlying, tree, up = None, down = None, div = 0) :
         self.tree = tree
         self.underlying = underlying
         self.up = up
         self.down = down
-        self.next = self.calcul_next()
+        self.next = self.calcul_next(div)
         self.Nup = None
         self.Ndown = None
         self.Nmid = None
         self.proba = self.calcul_proba()
         pass
 
-    def create_brick(self, trunc, direction = "up") :
+    def create_brick(self, trunc, direction = "up", div = 0) :
 
         Smid, Sup, Sdown = self.next
 
         if trunc :
-            self.Nmid = Node(Smid, self.tree, None, None)
-            self.Nup = Node(Sup, self.tree, None, self.Nmid)
-            self.Ndown = Node(Sdown, self.tree, self.Nmid, None)
+            self.Nmid = Node(Smid, self.tree, None, None, div)
+            self.Nup = Node(Sup, self.tree, None, self.Nmid, div)
+            self.Ndown = Node(Sdown, self.tree, self.Nmid, None, div)
             self.Nmid.up = self.Nup
             self.Nmid.down = self.Ndown
         elif direction == "up" and self.down is not None:
             self.Ndown = self.down.Nmid
             self.Nmid = self.down.Nup
-            self.Nup = Node(Sup, self.tree, down=self.Nmid)
+            self.Nup = Node(Sup, self.tree, down = self.Nmid, div = div)
             self.Nmid.up = self.Nup
             return
         # Si on construit en venant du haut
         elif direction == "down" and self.up is not None:
             self.Nup = self.up.Nmid
             self.Nmid = self.up.Ndown
-            self.Ndown = Node(Sdown, self.tree, up=self.Nmid)
+            self.Ndown = Node(Sdown, self.tree, up=self.Nmid, div = div)
             self.Nmid.down = self.Ndown
             return
 
         pass
 
-    def calcul_next(self) :
-        Smid = self.underlying * math.exp(self.tree.market.r * self.tree.dt)
+    def calcul_next(self, div) :
+        Smid = self.underlying * (math.exp(self.tree.market.r * self.tree.dt)) - div
         Sup = Smid * self.tree.alpha
         Sdown =  Smid/self.tree.alpha
         list_next = [Smid, Sup, Sdown]
