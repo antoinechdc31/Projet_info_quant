@@ -13,7 +13,7 @@ class Node :
         self.Nup = None
         self.Ndown = None
         self.Nmid = None
-        self.proba = self.calcul_proba()
+        self.proba = self.calcul_proba(div)
         pass
 
     def create_brick(self, trunc, direction = "up", div = 0) :
@@ -42,7 +42,7 @@ class Node :
 
         pass
 
-    def calcul_next(self, div) :
+    def calcul_next(self, div = 0) :
         Smid = self.underlying * (math.exp(self.tree.market.r * self.tree.dt)) - div
         Sup = Smid * self.tree.alpha
         Sdown =  Smid/self.tree.alpha
@@ -61,12 +61,27 @@ class Node :
         var = (self.underlying**2) * math.exp(2*self.tree.market.r * self.tree.dt) * (math.exp(self.tree.market.sigma**2 *self.tree.dt) - 1) # =B16^2*EXP(2*Rate*DeltaT)*(EXP(Sigma^2*DeltaT)-1)
         return var
 
-    def calcul_proba(self) :
+    def calcul_proba(self, div = 0) :
         v = self.variance()
         alpha = self.tree.alpha
-        numerateur = (self.next[0]**(-2))*( v + self.next[0]**2 ) - 1 - ( alpha + 1)*((self.next[0]**(-1))*self.next[0] - 1)
-        den = (1 - alpha) * ((alpha**(-2)) - 1)
-        Pdown = numerateur/den
-        Pup = Pdown/alpha
-        Pmid = ( 1 - (Pdown + Pup))
+
+        if div == 0 :
+
+            numerateur = (self.next[0]**(-2))*( v + self.next[0]**2 ) - 1 - ( alpha + 1)*((self.next[0]**(-1))*self.next[0] - 1)
+            den = (1 - alpha) * ((alpha**(-2)) - 1)
+            Pdown = numerateur/den
+            Pup = Pdown/alpha
+            Pmid = ( 1 - (Pdown + Pup))
+        else :
+            Smid = self.next[0]
+            numerateur = (Smid**(-2)) * (v + Smid**2) - 1 - (alpha + 1) * ((Smid**(-1)) * Smid - 1)
+            den = (1 - alpha) * (alpha**(-2) - 1)
+            Pdown = numerateur / den
+
+            # Formule
+            Pup = ((Smid**(-1)) * Smid - 1 - (alpha**(-1) - 1) * Pdown) / (alpha - 1)
+
+            # Pmid
+            Pmid = 1 - (Pdown + Pup)
+
         return [Pmid, Pup, Pdown]

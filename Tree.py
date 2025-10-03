@@ -19,8 +19,26 @@ class Tree :
 #################### METHODE DES BRIQUES ####################
 
     def build_columns(self, node_trunc, is_div_date = False, option = None) :
+
         if is_div_date :
+            
             div = option.div
+
+            # current_node = node_trunc
+            node_trunc.create_brick(True, direction = "up", div = div) # on crée la brick du tronc, la premiere brick de la colonne
+            current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
+
+            while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
+                current_node.create_brick(False, direction = "up", div = div) # on crée la brique avec comme direction Up
+                current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
+            
+            current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
+            # avec comme diréction down
+
+            while current_node is not None:
+                current_node.create_brick(False, direction = "down", div = div)
+                current_node = current_node.down
+
         else : 
             # current_node = node_trunc
             node_trunc.create_brick(True, direction = "up") # on crée la brick du tronc, la premiere brick de la colonne
@@ -50,9 +68,11 @@ class Tree :
         return future_node_trunc
 
     def tree_construction2(self, option) : # creation de l'arbre avec la méthode brique
-        node_trunc = self.root # on part de la root
 
-        if option.isDiv :
+        node_trunc = self.root # on part de la root
+        index = -1
+
+        if option.isDiv : # calcul de l'index pour savoir s'il y a des div
             d0 = datetime.now()
             num = (option.date_div - d0).days
             T = d0 + relativedelta(years = option.mat)
@@ -67,6 +87,7 @@ class Tree :
                 print('je suis laaaa')
                 node_trunc = self.build_columns(node_trunc, is_div_date, option) # on crée une colonne
             else :
+                is_div_date = False
                 node_trunc = self.build_columns(node_trunc)
 
         pass

@@ -6,6 +6,7 @@ from Option import Option
 import time
 from datetime import datetime
 import matplotlib.pyplot as plt
+import numpy as np
 
 def test_node_prices():
     market = Market(S0=100, r=0.03, sigma=0.2)
@@ -146,11 +147,11 @@ def comparaison_euro_amer(): # ici on verifie que l americain est + cher
     # lorsque c'est call et r negatif
     market = Market(S0=50, r= 0.7, sigma=0.8)
     tree = Tree(market, N=100, delta_t=3/100)
-    option = Option(K=60, mat=3, opt_type="put", style="european")
+    option = Option(K=60, mat=3, opt_type="call", style="european")
 
     prix_euro = tree.price_option_recursive(option)
 
-    option = Option(K=60, mat=3, opt_type="put", style="american")
+    option = Option(K=60, mat=3, opt_type="call", style="american")
 
     prix_amer = tree.price_option_recursive(option)
 
@@ -160,7 +161,8 @@ def comparaison_euro_amer(): # ici on verifie que l americain est + cher
 def test_avec_div() :
     market = Market(S0=50, r= 0.7, sigma=0.8)
     tree = Tree(market, N=1000, delta_t=1/1000)
-    option = Option(K=60, mat=1, opt_type="call", style="european")
+    date_vid = datetime(2026,1,3)
+    option = Option(K=60, mat=1, opt_type="call", style="european", isDiv = True, div = 10, date_div = date_vid)
 
     prix_euro = tree.price_option_recursive(option)
     print(prix_euro)

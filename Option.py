@@ -14,5 +14,8 @@ class Option :
     def payoff(self, S):
         if self.opt_type == "call" :
             return max(S - self.strike, 0)
-        else :
+        elif self.opt_type == "put" :
             return max(self.strike - S, 0)
+        else :
+            raise ValueError("Type d'option non reconnu")
+        
