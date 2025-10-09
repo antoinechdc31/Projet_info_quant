@@ -1,12 +1,12 @@
 import math
 from Market import Market
-from Node import Node
+from Node import Node, NodeTrunc
 from Option import Option
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import sys
 sys.setrecursionlimit(5000)  # limite de recursion car on avait un pb de dépassement de max depth
-
+ 
 class Tree : 
 
     def __init__(self, market: Market, N: int, delta_t):
@@ -14,7 +14,7 @@ class Tree :
         self.N = N
         self.dt = delta_t
         self.alpha = math.exp(market.sigma * math.sqrt(3 * self.dt))
-        self.root = Node(market.S0, self)
+        self.root = NodeTrunc(underlying = market.S0, tree = self, prev = None)
         self.Smid_tronc = None
 
 #################### METHODE DES BRIQUES ####################
@@ -30,14 +30,14 @@ class Tree :
             current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
 
             while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
-                current_node.create_brick(False, direction = "up", div = div, is_div = is_div_date) # on crée la brique avec comme direction Up
+                current_node.create_brick(False, direction = "up", div = div) # on crée la brique avec comme direction Up
                 current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
             
             current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
             # avec comme diréction down
 
             while current_node is not None:
-                current_node.create_brick(False, direction = "down", div = div, is_div = is_div_date)
+                current_node.create_brick(False, direction = "down", div = div)
                 current_node = current_node.down
 
         else : 
@@ -65,39 +65,84 @@ class Tree :
                 current_node = current_node.down
 
         future_node_trunc = node_trunc.Nmid # on recupere le tronc de la prochaine colonne pour lui envoyer
-        self.Smid_tronc = None
+    
         return future_node_trunc
 
-    def tree_construction2(self, option) : # creation de l'arbre avec la méthode brique
+    def tree_construction2(self, option):  # création de l'arbre avec la méthode brique
 
-        node_trunc = self.root # on part de la root
+        node_trunc = self.root
         index = -1
 
-        if option.isDiv : # calcul de l'index pour savoir s'il y a des div
+        if option.isDiv:
             d0 = datetime.now()
-            num = (option.date_div - d0).days
-            T = d0 + relativedelta(years = option.mat)
-            den = (T - d0).days
-            index = num/den
-            print(index)
-        
-        is_div_date = False
-        for i in range(1, self.N + 1) : # puis pour chaque niveau souhaité
-            if option.isDiv and index > i/self.N and index < (i+1)/self.N :
-                is_div_date = True
-                print('je suis laaaa')
-                node_trunc = self.build_columns(node_trunc, is_div_date, option) # on crée une colonne
-            else :
-                is_div_date = False
-                node_trunc = self.build_columns(node_trunc)
+            T = d0 + relativedelta(years=option.mat)
+            num = max(0, (option.date_div - d0).days)
+            den = max(1, (T - d0).days)
+            index = num / den
+            print(f"Position du dividende dans la maturité : {index:.4f}")
 
-        pass
+        
+        div_already_applied = False
+
+        for i in range(1, self.N + 1):
+            is_div_date = False
+
+            if option.isDiv and (not div_already_applied):
+                if index > i / self.N and index <= (i + 1) / self.N:
+                    is_div_date = True
+                    div_already_applied = True  # ⚡ le dividende ne sera plus appliqué ensuite
+                    print(f"→ Dividende appliqué au pas {i}/{self.N} ({index:.4f})")
+            
+            node_trunc = self.build_columns(node_trunc, is_div_date, option)
 
     def price_option_recursive(self, option):
 
         self.tree_construction2(option) # créaction de l'arbre
         memo = {} # valeur des feuilles deja calculée pour eviter le calcul plusieurs fois
-        return self.price_node(self.root, 0, option, memo) # appel de la fct recursive
+        return self.price_node2(self.root ,option) # appel de la fct recursive
+
+
+    def price_node2(self, node,option):
+
+        if node is None : # si le noeud n'existe pas on retourne 0
+            return 0.0
+
+        if node.Nmid is None : # si c'est la derniere colonne, on retourne le payoff
+            val = option.payoff(node.underlying)
+            node.option_value = val
+        else : # sinon on calcule avec la formule donnée par le cours -> DF * sum(V * proba)
+
+            if node.Nmid.option_value is not None :
+                Vmid = node.Nmid.option_value
+            else :
+                Vmid  = self.price_node2(node.Nmid, option)
+                node.Nmid.option_value = Vmid
+
+            if node.Nup.option_value is not None :
+                Vup = node.Nup.option_value
+            else :
+                Vup  = self.price_node2(node.Nup, option)
+                node.Nup.option_value = Vup
+
+            if node.Ndown.option_value is not None :
+                Vdown = node.Ndown.option_value
+            else :
+                Vdown  = self.price_node2(node.Ndown, option)
+                node.Ndown.option_value = Vdown
+
+            # application de la formule
+            df = math.exp(-self.market.r * self.dt)
+            moy_pond = (node.calcul_proba(node.div)[0]*Vmid + node.calcul_proba(node.div)[1]*Vup + node.calcul_proba(node.div)[2]*Vdown) * df
+
+            if option.style.lower() == "american" : # si c'est une américaine, on verifie le max 
+            # entre le payoff actuel et la valeur calculée
+                val = max(option.payoff(node.underlying), moy_pond)
+            else:
+                val = moy_pond # si c'est européenne on retourn e juste sa valeur
+        node.option_value = val
+        return val # puis on retourne cette valeur
+
+
 
     def price_node(self, node, t, option, memo):
 
@@ -113,6 +158,7 @@ class Tree :
         if t == self.N : # si c'est la derniere colonne, on retourne le payoff
             val = option.payoff(node.underlying)
         else : # sinon on calcule avec la formule donnée par le cours -> DF * sum(V * proba)
+
             Vmid  = self.price_node(node.Nmid, t+1,option, memo)
             Vup   = self.price_node(node.Nup, t+1, option,memo)
             Vdown = self.price_node(node.Ndown, t+1,option, memo)
@@ -130,7 +176,12 @@ class Tree :
 
         return val # puis on retourne cette valeur
 
-    
+    def price_node_backward(self) :
+
+
+
+        pass
+
 ################# METHODE SANS BRIQUE ###################
 
     def tree_construction(self) : # version sans brique

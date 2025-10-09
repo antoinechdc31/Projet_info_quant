@@ -2,89 +2,62 @@ import Tree
 import Market
 import math
 
-class Node :
+class Node : 
 
     def __init__(self, underlying, tree, level = 0, up = None, down = None, div = 0) :
+
         self.tree = tree
         self.underlying = underlying
         self.level = level
         self.up = up
         self.down = down
-        self.next = self.calcul_next(div)
         self.Nup = None
         self.Ndown = None
         self.Nmid = None
-        self.proba = self.calcul_proba(div)
+        self.option_value = None
+        self.div = div
         pass
 
     def create_brick(self, trunc, direction = "up", div = 0, is_div = False) :
-        if not is_div :
-            Smid, Sup, Sdown = self.next
-        else :
 
-            Smid, Sup, Sdown = self.calcul_next(div, is_div)
-            self.next = [Smid, Sup, Sdown]
+        Smid = self.underlying * (math.exp(self.tree.market.r * self.tree.dt)) - div
+        Sup = Smid * self.tree.alpha
+        Sdown =  Smid/self.tree.alpha
 
         if trunc :
-            self.Nmid = Node(Smid, self.tree, self.level, None, None, div)
-            self.Nup = Node(Sup, self.tree, self.level + 1, None, self.Nmid, div)
-            self.Ndown = Node(Sdown, self.tree, self.level - 1, self.Nmid, None, div)
+
+            self.Nmid = NodeTrunc(Smid, self.tree, self.level, None, None, 0, self)
+            self.Nup = Node(Sup, self.tree, self.level + 1, None, self.Nmid, 0)
+            self.Ndown = Node(Sdown, self.tree, self.level - 1, self.Nmid, None, 0)
             self.Nmid.up = self.Nup
             self.Nmid.down = self.Ndown
-        elif direction == "up" and self.down is not None:
+
+        elif direction == "up" and self.down is not None :
+
             self.Ndown = self.down.Nmid
             self.Nmid = self.down.Nup
-            self.Nup = Node(Sup, self.tree, self.level + 1, down = self.Nmid, div = div)
+            Sup = self.Nmid.underlying * self.tree.alpha
+            self.Nup = Node(Sup, self.tree, self.level + 1, down = self.Nmid, div = 0)
             self.Nmid.up = self.Nup
             return
         # Si on construit en venant du haut
-        elif direction == "down" and self.up is not None:
+        elif direction == "down" and self.up is not None :
             self.Nup = self.up.Nmid
             self.Nmid = self.up.Ndown
-            self.Ndown = Node(Sdown, self.tree, self.level - 1, up=self.Nmid, div = div)
+            Sdown = self.Nmid.underlying / self.tree.alpha
+            self.Ndown = Node(Sdown, self.tree, self.level - 1, up=self.Nmid, div = 0)
             self.Nmid.down = self.Ndown
             return
 
         pass
 
-    def calcul_next(self, div = 0, is_div = False) :
-
-        if not is_div :
-
-            Smid = self.underlying * (math.exp(self.tree.market.r * self.tree.dt)) - div
-            Sup = Smid * self.tree.alpha
-            Sdown =  Smid/self.tree.alpha
-            list_next = [Smid, Sup, Sdown]
-
-        else :
-            alpha = self.tree.alpha
-            r = self.tree.market.r
-            dt = self.tree.dt
-
-            if self.level == 0 :
-                Smid = self.underlying * math.exp(r * dt) - div
-                self.tree.Smid_tronc = Smid  # mémoriser
-
-            elif self.tree.Smid_tronc is not None :
-
-                Smid = self.tree.Smid_tronc * (alpha ** self.level)
-
-            else :
-                raise ValueError
-            
-            Sup = Smid * alpha
-            Sdown = Smid / alpha
-
-            list_next = [Smid, Sup, Sdown]
-
-        return list_next
     
     def forward(self) :
-        esp = self.underlying * math.exp(self.tree.market.r * self.tree.dt)
+        esp = self.underlying * math.exp(self.tree.market.r * self.tree.dt) 
         return esp
     
-    def esp(self) :
-        esp = self.next[0] * self.proba[0] + self.next[1] * self.proba[1] + self.next[2] * self.proba[2]
+    def esp(self, div = 0) :
+        esp = self.Nmid.underlying * self.calcul_proba(div)[0] + self.Nup.underlying * self.calcul_proba(div)[1] + self.Ndown.underlying * self.calcul_proba(div)[2]
         return esp
     
     def variance(self) :
@@ -96,8 +69,8 @@ class Node :
         alpha = self.tree.alpha
 
         if div == 0 :
-
-            numerateur = (self.next[0]**(-2))*( v + self.next[0]**2 ) - 1 - ( alpha + 1)*((self.next[0]**(-1))*self.next[0] - 1)
+            Smid = self.Nmid.underlying
+            numerateur = (Smid**(-2))*( v + Smid**2 ) - 1 - ( alpha + 1)*((Smid**(-1))*Smid - 1)
             den = (1 - alpha) * ((alpha**(-2)) - 1)
             Pdown = numerateur/den
             Pup = Pdown/alpha
@@ -105,15 +78,27 @@ class Node :
 
         else :
             
-            Smid = self.next[0]
-            numerateur = (Smid**(-2)) * (v + Smid**2) - 1 - (alpha + 1) * ((Smid**(-1)) * Smid - 1)
+            Smid = self.Nmid.underlying # car ici c'est que le fwd
+            esp = self.forward() - div
+
+            numerateur = (Smid**(-2)) * (v + esp**2) - 1 - (alpha + 1) * ((Smid**(-1)) * esp - 1)
             den = (1 - alpha) * (alpha**(-2) - 1)
             Pdown = numerateur / den
 
-            # Formule
-            Pup = ((Smid**(-1)) * Smid - 1 - (alpha**(-1) - 1) * Pdown) / (alpha - 1)
+            Pup = ((Smid**(-1)) * esp - 1 - (alpha**(-1) - 1) * Pdown) / (alpha - 1)
 
-            # Pmid
             Pmid = 1 - (Pdown + Pup)
 
+        if Pmid<0 or Pup<0 or Pdown<0 or Pmid>1 or Pup>1 or Pdown>1 :
+            print("Attention !!!!!!!!!!!!")
+            print(Pmid, Pup, Pdown)
+
         return [Pmid, Pup, Pdown]
+
+
+
+class NodeTrunc(Node) :
+    
+    def __init__(self, underlying, tree, level=0, up=None, down=None, div=0, prev=None):
+        super().__init__(underlying, tree, level, up, down, div)
+        self.prev = prev

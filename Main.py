@@ -145,15 +145,23 @@ def benchmark_tree(max_N=5000, step=100):
 
 def comparaison_euro_amer(): # ici on verifie que l americain est + cher 
     # lorsque c'est call et r negatif
-    market = Market(S0=50, r= 0.7, sigma=0.8)
+    market = Market(S0=50, r = 0.7, sigma=0.8)
     tree = Tree(market, N=100, delta_t=3/100)
-    option = Option(K=60, mat=3, opt_type="call", style="european")
+    option = Option(K=60, mat=3, opt_type="put", style="european")
 
     prix_euro = tree.price_option_recursive(option)
 
-    option = Option(K=60, mat=3, opt_type="call", style="american")
+    option = Option(K=60, mat=3, opt_type="put", style="american")
 
     prix_amer = tree.price_option_recursive(option)
+
+    market = Market(S0=50, r=0.05, sigma=0.8)
+    tree = Tree(market, N=100, delta_t=3/100)
+    option = Option(K=60, mat=3, opt_type="put", style="european")
+    print(tree.price_option_recursive(option))
+    option = Option(K=60, mat=3, opt_type="put", style="american")
+    print(tree.price_option_recursive(option))
+
 
     print("Prix euro =", prix_euro)
     print("Prix americain =", prix_amer)
@@ -176,11 +184,11 @@ def test_avec_div() :
 
 def test_avec_div2():
     # --- Paramètres du marché ---
-    market = Market(S0=50, r=0.7, sigma=0.8)
+    market = Market(S0=100, r=0.01, sigma=0.3)
     tree = Tree(market, N=1000, delta_t=1/1000)
 
     # --- Date du dividende ---
-    date_div = datetime(2026, 1, 3)
+    date_div = datetime(2025, 12, 9)
 
     # --- Définition de l'option avec dividende ---
     option = Option(
@@ -189,18 +197,15 @@ def test_avec_div2():
         opt_type="call",
         style="european",
         isDiv=True,
-        div=10,           # dividende discret de 10
+        div = 10,           # dividende discret de 10
         date_div=date_div
     )
 
-    # --- Pricing via ton arbre (récursif avec build_columns, etc.) ---
     prix_euro = tree.price_option_recursive(option)
 
-    # --- Pricing via Black-Scholes (sans dividende pour comparaison) ---
-    prix_bs = black_scholes(S0=50, K=60, T=1, r=0.7, sigma=0.8, type="call")
+    prix_bs = black_scholes(S0=100, K=60, T=3, r=0.01, sigma=0.3, type="call")
 
     print("\n===== Test avec dividende discret =====")
-    print(f"Paramètres : S0=50, K=60, r=0.7, σ=0.8, div=10, N=1000")
     print(f"Date du dividende : {date_div.strftime('%Y-%m-%d')}")
     print("---------------------------------------")
     print(f"Prix via arbre trinomial (avec div)   : {prix_euro:.6f}")
