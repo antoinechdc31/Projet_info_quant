@@ -197,18 +197,19 @@ def test_avec_div2():
         opt_type="call",
         style="european",
         isDiv=True,
-        div = 10,           # dividende discret de 10
+        div = 0,           # dividende discret de 10
         date_div=date_div
     )
 
     prix_euro = tree.price_option_recursive(option)
-
-    prix_bs = black_scholes(S0=100, K=60, T=3, r=0.01, sigma=0.3, type="call")
+    prix_back = tree.price_node_backward(option)
+    prix_bs = black_scholes(S0=100, K=60, T=1, r=0.01, sigma=0.3, type="call")
 
     print("\n===== Test avec dividende discret =====")
     print(f"Date du dividende : {date_div.strftime('%Y-%m-%d')}")
     print("---------------------------------------")
     print(f"Prix via arbre trinomial (avec div)   : {prix_euro:.6f}")
+    print("Prix back (avec div)   :" , prix_back)
     print(f"Prix via Black-Scholes (sans div)     : {prix_bs:.6f}")
     print("---------------------------------------")
     print("→ On devrait observer que le prix avec dividende est PLUS FAIBLE\n"

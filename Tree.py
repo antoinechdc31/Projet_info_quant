@@ -98,9 +98,8 @@ class Tree :
     def price_option_recursive(self, option):
 
         self.tree_construction2(option) # créaction de l'arbre
-        memo = {} # valeur des feuilles deja calculée pour eviter le calcul plusieurs fois
+        # memo = {} # valeur des feuilles deja calculée pour eviter le calcul plusieurs fois
         return self.price_node2(self.root ,option) # appel de la fct recursive
-
 
     def price_node2(self, node,option):
 
@@ -131,56 +130,84 @@ class Tree :
                 node.Ndown.option_value = Vdown
 
             # application de la formule
+            p_mid, p_up, p_down = node.calcul_proba(node.div)
             df = math.exp(-self.market.r * self.dt)
-            moy_pond = (node.calcul_proba(node.div)[0]*Vmid + node.calcul_proba(node.div)[1]*Vup + node.calcul_proba(node.div)[2]*Vdown) * df
+            moy_pond = df * (p_mid * Vmid + p_up * Vup + p_down * Vdown)
 
-            if option.style.lower() == "american" : # si c'est une américaine, on verifie le max 
-            # entre le payoff actuel et la valeur calculée
+            if option.style.lower() == "american":
                 val = max(option.payoff(node.underlying), moy_pond)
             else:
-                val = moy_pond # si c'est européenne on retourn e juste sa valeur
+                val = moy_pond# si c'est européenne on retourn e juste sa valeur
+
         node.option_value = val
         return val # puis on retourne cette valeur
 
+    def price_node_backward(self, option):
 
+        # on va jusq'à la dernière colonne (feuilles)
+        node_trunc_final = self.root
+        while node_trunc_final.Nmid is not None:
+            node_trunc_final = node_trunc_final.Nmid
 
-    def price_node(self, node, t, option, memo):
+        # valoriser les feuilles
+        current = node_trunc_final
 
-        if node is None : # si le noeud n'existe pas on retourne 0
-            return 0.0
+        while current is not None:
+            current.option_value = option.payoff(current.underlying)
+            current = current.up
 
-        key = (id(node), t) # clé unique pour un nœud
-        # puis on crée un memo pour se souvenir des anciennes valeur caculée, cela permet de gagner bcp de temps
-        # et d'eviter de calculer plusieurs fois les memes valeurs
-        if key in memo :
-            return memo[key] # si cela existe, on retourne sa valeur qui a deja ete calculée
+        current = node_trunc_final.down
 
-        if t == self.N : # si c'est la derniere colonne, on retourne le payoff
-            val = option.payoff(node.underlying)
-        else : # sinon on calcule avec la formule donnée par le cours -> DF * sum(V * proba)
+        while current is not None:
+            current.option_value = option.payoff(current.underlying)
+            current = current.down
 
-            Vmid  = self.price_node(node.Nmid, t+1,option, memo)
-            Vup   = self.price_node(node.Nup, t+1, option,memo)
-            Vdown = self.price_node(node.Ndown, t+1,option, memo)
-            # applicatio de la formule
-            df = math.exp(-self.market.r * self.dt)
-            moy_pond = (node.proba[0]*Vmid + node.proba[1]*Vup + node.proba[2]*Vdown) * df
+        # on remonte colonne par colonne
+        node_trunc = node_trunc_final.prev
+        while node_trunc is not None:
 
-            if option.style.lower() == "american" : # si c'est une américaine, on verifie le max 
-            # entre le payoff actuel et la valeur calculée
-                val = max(option.payoff(node.underlying), moy_pond)
-            else:
-                val = moy_pond # si c'est européenne on retourn e juste sa valeur
+            # vers le haut
+            current = node_trunc
 
-        memo[key] = val # on ajoute la valeur dans le mémo
+            while current is not None:
 
-        return val # puis on retourne cette valeur
+                val = self.pricing_noeud_indiv(option, current)
 
-    def price_node_backward(self) :
+                current.option_value = val
+                current = current.up
 
+            # vers le bas
+            current = node_trunc.down
 
+            while current is not None:
 
-        pass
+                val = self.pricing_noeud_indiv(option, current)
+
+                current.option_value = val
+                current = current.down
+
+            # on passe à la colonne précédente
+            node_trunc = node_trunc.prev
+
+        # le prix de l’option = valeur de la racine
+        return self.root.option_value
+
+    def pricing_noeud_indiv(self, option , current): # fonction generale pour pricer un noeud (pas feuille)
+
+        Vmid = current.Nmid.option_value
+        Vup = current.Nup.option_value
+        Vdown = current.Ndown.option_value
+
+        p_mid, p_up, p_down = current.calcul_proba(current.div)
+        df = math.exp(-self.market.r * self.dt)
+        moy_pond = df * (p_mid * Vmid + p_up * Vup + p_down * Vdown)
+
+        if option.style.lower() == "american":
+            val = max(option.payoff(current.underlying), moy_pond)
+        else:
+            val = moy_pond
+
+        return val
 
 ################# METHODE SANS BRIQUE ###################
 
@@ -205,7 +232,6 @@ class Tree :
             niveau.append(nv_niveau) # ajout du nv niveau
 
         return niveau
-
 
     def price_option(self, option: Option):
         niveau = self.tree_construction() # on crée l'arbre
@@ -247,13 +273,3 @@ class Tree :
 
         return list_payoff[0] # a la fin on a la derniere valeur
 
-
-    # def print_tree(self):
-
-    #     levels = self.tree_construction()
-    #     max_width = len(levels[-1]) * 10  # largeur approx pour centrer
-
-    #     for i, level in enumerate(levels) :
-    #         prices = [f"{n.underlying:7.2f}" for n in level]
-    #         line = ("   ".join(prices)).center(max_width)
-    #         print(line)s
