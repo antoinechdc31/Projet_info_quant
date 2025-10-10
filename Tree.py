@@ -1,11 +1,12 @@
 import math
 from Market import Market
-from Node import Node
+from Node import Node, NodeTrunc
 from Option import Option
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import sys
 sys.setrecursionlimit(5000)  # limite de recursion car on avait un pb de dépassement de max depth
+
 
 class Tree : 
 
@@ -14,27 +15,33 @@ class Tree :
         self.N = N
         self.dt = delta_t
         self.alpha = math.exp(market.sigma * math.sqrt(3 * self.dt))
-        self.root = Node(market.S0, self)
+        self.root = NodeTrunc(underlying = market.S0, tree = self,prev = None) # racine de l'arbre
+        self.Smid_tronc = None
+
 
 #################### METHODE DES BRIQUES ####################
 
     def build_columns(self, node_trunc, is_div_date = False, option = None) :
+
         if is_div_date :
+            
             div = option.div
 
-            node_trunc.create_brick(True, direction = "up",div = div) # on crée la brick du tronc, la premiere brick de la colonne
+            # current_node = node_trunc
+            node_trunc.create_brick(True, direction = "up", div = div, is_div = is_div_date) # on crée la brick du tronc, la premiere brick de la colonne
             current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
 
             while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
-                current_node.create_brick(False, direction = "up") # on crée la brique avec comme direction Up
+                current_node.create_brick(False, direction = "up", div = div, is_div = is_div_date) # on crée la brique avec comme direction Up
                 current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
             
             current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
             # avec comme diréction down
 
             while current_node is not None:
-                current_node.create_brick(False, direction = "down")
+                current_node.create_brick(False, direction = "down", div = div, is_div = is_div_date)
                 current_node = current_node.down
+
         else : 
             # current_node = node_trunc
             node_trunc.create_brick(True, direction = "up") # on crée la brick du tronc, la premiere brick de la colonne
@@ -55,18 +62,20 @@ class Tree :
             current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
             # avec comme diréction down
 
-            while current_node is not None:
+            while current_node is not None :
                 current_node.create_brick(False, direction = "down")
                 current_node = current_node.down
 
         future_node_trunc = node_trunc.Nmid # on recupere le tronc de la prochaine colonne pour lui envoyer
-
+        self.Smid_tronc = None
         return future_node_trunc
 
     def tree_construction2(self, option) : # creation de l'arbre avec la méthode brique
+
         node_trunc = self.root # on part de la root
         index = -1
-        if option.isDiv :
+
+        if option.isDiv : # calcul de l'index pour savoir s'il y a des div
             d0 = datetime.now()
             num = (option.date_div - d0).days
             T = d0 + relativedelta(years = option.mat)
@@ -189,6 +198,48 @@ class Tree :
 
         return list_payoff[0] # a la fin on a la derniere valeur
 
+
+
+    def price_option2(self, option: Option):
+        
+        niveau = self.tree_construction() # on crée l'arbre
+        # ensuite on calcule les payoff a maturité
+        # donc on prend le dernier niveau t_N = T
+
+        dernier_nv = niveau[-1]
+        # print(dernier_nv)
+        list_payoff = []
+        for n in dernier_nv :
+            list_payoff.append(option.payoff(n.underlying)) # ajout de chaque payoff de la dernier ligne
+        # print(list_payoff) payoff validé
+
+        # niveau t_N-1 etc
+
+        for i in range(len(niveau) - 1, 0 , -1) :
+
+            list_val = []
+            # print(niveau[i-1])
+            for j, noeud in enumerate(niveau[i-1]) :
+
+                # print("niveau ", i - 1)
+                # print(j, noeud)
+
+                Pmid, Pup, Pdown = noeud.proba # on recupere les probas du noeud (grace à la classe noeud)
+                DF = math.exp( - self.market.r * self.dt) # calcul du DF comme dans les slide
+
+                valeur = DF * ( Pdown * list_payoff[ j] + Pmid * list_payoff[j + 1] + Pup * list_payoff[j + 2 ] )
+                # la valeur vaut le DF fois la somme des proba * nv d'avant
+
+                if option.style == "american":
+                    valeur = max(valeur, option.payoff(noeud.underlying)) # pour chaque noeuf la valeur est le max entre ces deux quantités
+                    # valeur hold et la valeur d'exercice avec le payoff
+
+                list_val.append(valeur) # on ajoute la valeur calculée pour la stocker pour les prochains niveaux
+
+            list_payoff = list_val  # on remplace pour l'étape suivante
+            # print(list_payoff)
+
+        return list_payoff[0] # a la fin on a la derniere valeur
 
     # def print_tree(self):
 

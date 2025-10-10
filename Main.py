@@ -4,6 +4,7 @@ from Node import Node
 from BlackScholes import black_scholes
 from Option import Option
 import time
+from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -176,7 +177,6 @@ def compare_tree_bs_vs_strike():
 
         p_tree = tree.price_option_recursive(option)
         p_bs = black_scholes(S0=100, K=K, T=1, r=0.03, sigma=0.2, type="call")
-
         prix_tree.append(p_tree)
         prix_bs.append(p_bs)
         diffs.append(p_tree - p_bs)
@@ -219,21 +219,42 @@ def compare_tree_bs_vs_strike():
     plt.legend()
     plt.show()
 
-def test_avec_div() :
-    market = Market(S0=50, r= 0.7, sigma=0.8)
+def test_avec_div2():
+    # --- Paramètres du marché ---
+    market = Market(S0=50, r=0.7, sigma=0.8)
     tree = Tree(market, N=1000, delta_t=1/1000)
-    option = Option(K=60, mat=1, opt_type="call", style="european")
 
+    # --- Date du dividende ---
+    date_div = datetime(2026, 1, 3)
+
+    # --- Définition de l'option avec dividende ---
+    option = Option(
+        K=60,
+        mat=1,  # maturité 1 an
+        opt_type="call",
+        style="european",
+        isDiv=True,
+        div=10,           # dividende discret de 10
+        date_div=date_div
+    )
+
+    # --- Pricing via ton arbre (récursif avec build_columns, etc.) ---
     prix_euro = tree.price_option_recursive(option)
-    print(prix_euro)
 
+    # --- Pricing via Black-Scholes (sans dividende pour comparaison) ---
     prix_bs = black_scholes(S0=50, K=60, T=1, r=0.7, sigma=0.8, type="call")
 
-    print("Prix de l'arbre brique : ", prix_euro)
-    print("Prix de l'arbre classique", prix_bs ) # on voit que l'arbre brique est plus court
+    print("\n===== Test avec dividende discret =====")
+    print(f"Paramètres : S0=50, K=60, r=0.7, σ=0.8, div=10, N=1000")
+    print(f"Date du dividende : {date_div.strftime('%Y-%m-%d')}")
+    print("---------------------------------------")
+    print(f"Prix via arbre trinomial (avec div)   : {prix_euro:.6f}")
+    print(f"Prix via Black-Scholes (sans div)     : {prix_bs:.6f}")
+    print("---------------------------------------")
+    print("→ On devrait observer que le prix avec dividende est PLUS FAIBLE\n"
+          "  car le sous-jacent chute à la date de versement du dividende.")
 
 if __name__ == "__main__":
-    #compare_tree_bs_vs_strike()
-    #test_avec_div()
-    #convergence_recursive()
-    benchmark_tree_times()
+    test_avec_div2() 
+    #convergence_recursive() #=> Convergence de l'arbre récursif vers black scholes
+    #compare_tree_bs_vs_strike() #=> Comparaison des prix en fonction du strike
