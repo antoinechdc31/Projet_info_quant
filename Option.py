@@ -18,3 +18,4 @@ class Option :
             return max(self.strike - S, 0)
         else :
             raise ValueError("Type d'option non reconnu")
+        
