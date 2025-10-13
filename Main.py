@@ -222,7 +222,7 @@ def compare_tree_bs_vs_strike():
 
 def test_avec_div2():
     # --- Paramètres du marché ---
-    market = Market(S0=100, r=0.01, sigma=0.3)
+    market = Market(S0=100, r=0.05, sigma=0.2)
     tree = Tree(market, N=100, delta_t=1/100)
 
     # --- Date du dividende ---
@@ -235,19 +235,19 @@ def test_avec_div2():
         opt_type="call",
         style="european",
         isDiv=True,
-        div = 10,           # dividende discret de 10
+        div = 6,           # dividende discret de 10
         date_div=date_div
     )
 
     prix_euro = tree.price_option_recursive(option)
-    #prix_back = tree.price_node_backward(option)
+    prix_back = tree.price_node_backward(option)
     prix_bs = black_scholes(S0=100, K=60, T=1, r=0.01, sigma=0.3, type="call")
 
     print("\n===== Test avec dividende discret =====")
     print(f"Date du dividende : {date_div.strftime('%Y-%m-%d')}")
     print("---------------------------------------")
     print(f"Prix via arbre trinomial (avec div)   : {prix_euro:.6f}")
-    #print("Prix back (avec div)   :" , prix_back)
+    print("Prix back (avec div)   :" , prix_back)
     print(f"Prix via Black-Scholes (sans div)     : {prix_bs:.6f}")
     print("---------------------------------------")
     print("→ On devrait observer que le prix avec dividende est PLUS FAIBLE\n"

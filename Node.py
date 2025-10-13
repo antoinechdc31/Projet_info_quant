@@ -29,12 +29,8 @@ class Node :
         if self.proba_totale < epsilon:
             print ("Proba totale trop faible, on ne crée qu'un Nmid plat")
             if self.Nmid is None:
-                self.Nmid = Node(
-                Smid, self.tree, self.level, None, None, 0,
-                proba_totale=self.proba_totale
-            )
+                self.Nmid = Node(Smid, self.tree, self.level, None, None, 0,proba_totale=self.proba_totale)
             else:
-                
                 self.Nmid.proba_totale += self.proba_totale #la proba d'y arriver par l'autre chemin + la proba du chemin actuel
 
             self.Nup = None
@@ -48,20 +44,11 @@ class Node :
         if trunc:
 
             prev = self if not trunc else None
-            self.Nmid = NodeTrunc(
-            Smid, self.tree, self.level, None, None, 0,
-            proba_totale=0, prev=prev
-        )
-            self.Nup = Node(
-                Sup, self.tree, self.level + 1, None, self.Nmid, 0,
-                proba_totale=0
-            )
-            self.Ndown = Node(
-                Sdown, self.tree, self.level - 1, self.Nmid, None, 0,
-                proba_totale=0
-            )
-            #self.Nmid.up = self.Nup
-            #self.Nmid.down = self.Ndown
+            self.Nmid = NodeTrunc(Smid, self.tree, self.level, None, None, 0,proba_totale=0, prev=prev)
+            self.Nup = Node(Sup, self.tree, self.level + 1, None, self.Nmid, 0,proba_totale=0)
+            self.Ndown = Node(Sdown, self.tree, self.level - 1, self.Nmid, None, 0,proba_totale=0)
+            self.Nmid.up = self.Nup
+            self.Nmid.down = self.Ndown
 
             #  On calcule les probabilités locales (Nmid existe maintenant)
             Pmid, Pup, Pdown = self.calcul_proba(div)
@@ -110,7 +97,7 @@ class Node :
             self.Nup.proba_totale += self.proba_totale * Pup
             
             
-            #self.Nmid.up = self.Nup
+            self.Nmid.up = self.Nup
             return
 
         # Si on construit en venant du bas
@@ -144,10 +131,10 @@ class Node :
             Sdown = self.Nmid.underlying / self.tree.alpha
             if self.Ndown is None:
                 self.Ndown = Node(Sdown, self.tree, self.level - 1, up=self.Nmid, div=0, proba_totale=0)
-            self.Ndown.proba_totale += self.proba_totale * Pdown
+                self.Ndown.proba_totale += self.proba_totale * Pdown
 
-            # Lien descendant
-            #self.Nmid.down = self.Ndown
+            # Lien descendant 
+            self.Nmid.down = self.Ndown
             return
         
 

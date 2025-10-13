@@ -106,7 +106,7 @@ class Tree :
         if node is None : # si le noeud n'existe pas on retourne 0
             return 0.0
 
-        if node.Nmid is None or (node.Nup is None and node.Ndown is None) or getattr(node, "is_terminal", False): # si c'est la derniere colonne, on retourne le payoff
+        if node.Nmid is None or (node.Nup is None and node.Ndown is None): # si c'est la derniere colonne, on retourne le payoff
             print("⚠️ auto-cycle détecté au niveau", node.level, "S =", node.underlying)
             val = option.payoff(node.underlying)
             node.option_value = val
