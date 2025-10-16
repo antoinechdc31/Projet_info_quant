@@ -46,7 +46,7 @@ class Tree :
             # current_node = node_trunc
             node_trunc.create_brick(True, direction = "up") # on crée la brick du tronc, la premiere brick de la colonne
             current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
-            # c'est à dire :
+            # c'est à dire :    
             #           Node up
             #             |     Nup create avec create_bric du tronc
             #             |   /
@@ -96,7 +96,6 @@ class Tree :
                     print(f"→ Dividende appliqué au pas {i}/{self.N} ({index:.4f})")
             #print(i)
             node_trunc = self.build_columns(node_trunc, is_div_date, option)
-
 
     def price_option_recursive(self, option):
 
@@ -214,12 +213,20 @@ class Tree :
 
     def delta(self,option, h=1e-2):
 
-        S0 = self.S0
-        tree_up = copy.deepcopy(self)
-        tree_down = copy.deepcopy(self)
+        S0 = self.market.S0
+        market_up = Market(S0 + h, self.market.r, self.market.sigma)
+        market_down = Market(S0 - h, self.market.r, self.market.sigma)
 
-        tree_up.S0 = S0 + h
-        tree_down.S0 = S0 - h
+        # Reconstruit les arbres complets
+        tree_up = Tree(market_up, self.N, self.dt)
+        # tree_up.tree_construction2()
+        tree_down = Tree(market_down, self.N, self.dt)
+        # tree_down.tree_construction2()
+        # tree_up = Tree(self.market, self.N, self.dt)
+        # tree_down = Tree(self.market, self.N, self.dt)
+
+        # tree_up.market.S0 = S0 + h
+        # tree_down.market.S0 = S0 - h
 
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
@@ -230,12 +237,13 @@ class Tree :
 
     def gamma(self, option, h=1e-2):
 
-        S0 = self.S0
-        tree_up = copy.deepcopy(self)
-        tree_down = copy.deepcopy(self)
-
-        tree_up.S0 = S0 + h
-        tree_down.S0 = S0 - h
+        S0 = self.market.S0
+        
+        market_up = Market(S0 + h, self.market.r, self.market.sigma)
+        market_down = Market(S0 - h, self.market.r, self.market.sigma)
+        tree_up = Tree(market_up, self.N, self.dt)
+        # tree_up.tree_construction2()
+        tree_down = Tree(market_down, self.N, self.dt)
 
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
@@ -247,12 +255,12 @@ class Tree :
 
     def vega(self, option, hVol=1e-2):
 
-        sigma = self.sigma
-        tree_up = copy.deepcopy(self)
-        tree_down = copy.deepcopy(self)
+        sigma = self.market.sigma
+        tree_up = Tree(self.market, self.N, self.dt)
+        tree_down = Tree(self.market, self.N, self.dt)
 
-        tree_up.sigma = sigma * (1 + hVol)
-        tree_down.sigma = sigma * (1 - hVol)
+        tree_up.market.sigma = sigma * (1 + hVol)
+        tree_down.market.sigma = sigma * (1 - hVol)
 
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
@@ -263,15 +271,14 @@ class Tree :
 
     def volga(self, option, hVol=1e-2):
 
-        sigma = self.sigma
+        sigma = self.market.sigma
 
         # Copies indépendantes de l’arbre
-        tree_up = copy.deepcopy(self)
-        tree_down = copy.deepcopy(self)
+        tree_up = Tree(self.market, self.N, self.dt)
+        tree_down = Tree(self.market, self.N, self.dt)
 
-        # On modifie légèrement la volatilité
-        tree_up.sigma = sigma * (1 + hVol)
-        tree_down.sigma = sigma * (1 - hVol)
+        tree_up.market.sigma = sigma * (1 + hVol)
+        tree_down.market.sigma = sigma * (1 - hVol)
 
         # Calcul des prix pour sigma+h, sigma, sigma−h
         price_up = tree_up.price_option_recursive(option)
@@ -284,69 +291,6 @@ class Tree :
         print(f"Volga (Vomma) = {Volga:.6f}")
         return Volga
 
-
-
-    def plot_tree(self, option=None, show_option_values=False,  max_depth=6):
-        # (Re)construction de l'arbre
-        if option:
-            self.tree_construction2(option)
-        else:
-            from Option import Option
-            option = Option(K=0, mat=1, opt_type="call", style="european", isDiv=False)
-            self.tree_construction2(option)
-
-        # --- collecte jusqu'à max_depth ---
-        levels = []
-        current_level = [self.root]
-        for _ in range(max_depth):
-            levels.append(current_level)
-            next_level = []
-            for node in current_level:
-                if node and node.Nmid:
-                    next_level.extend([node.Ndown, node.Nmid, node.Nup])
-            current_level = [n for n in next_level if n is not None]
-
-        # --- coordonnées ---
-        x_points, y_points = [], []
-        lines = []
-        for i, level in enumerate(levels):
-            for node in level:
-                if not node:
-                    continue
-                x_points.append(i)
-                val = node.option_value if show_option_values else node.underlying
-                y_points.append(val)
-
-                if node.Nmid and i < max_depth - 1:
-                    for child in [node.Ndown, node.Nmid, node.Nup]:
-                        if child:
-                            lines.append(
-                                ((i, i + 1),
-                                 (val, child.option_value if show_option_values else child.underlying))
-                            )
-
-        # --- affichage ---
-        plt.figure(figsize=(10, 6))
-        for (xv, yv) in lines:
-            plt.plot(xv, yv, color="gray", linewidth=0.7, alpha=0.5)
-
-        plt.scatter(x_points, y_points, s=20, c="royalblue", alpha=0.8)
-
-        # Ligne du dividende
-        if option.isDiv and option.date_div:
-            d0 = datetime.now()
-            T = d0 + relativedelta(years=option.mat)
-            pos = (option.date_div - d0).days / max(1, (T - d0).days)
-            x_div = int(pos * max_depth)
-            plt.axvline(x=x_div, color="red", linestyle="--", linewidth=1.5, label=f"Div ({option.div})")
-
-        plt.title(f"Arbre trinomial - {'Option' if show_option_values else 'Sous-jacent'}")
-        plt.xlabel("Étape (t)")
-        plt.ylabel("Valeur")
-        plt.legend()
-        plt.grid(True, linestyle="--", alpha=0.5)
-        plt.tight_layout()
-        plt.show()
 ################# METHODE SANS BRIQUE ###################
 
     def tree_construction(self) : # version sans brique

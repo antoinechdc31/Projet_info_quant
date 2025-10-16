@@ -99,21 +99,19 @@ if st.button("🚀 Calculer le prix"):
         st.info("💡 En l’absence de dividende, le prix trinomial doit être proche du prix Black–Scholes.")
 
     # --- Grecques ---
-    try:
-        delta = tree.delta(option)
-        gamma = tree.gamma(option)
-        vega = tree.vega(option)
-        volga = tree.volga(option)
+    
+    delta = tree.delta(option)
+    gamma = tree.gamma(option)
+    vega = tree.vega(option)
+    volga = tree.volga(option)
 
-        st.subheader("📈 Sensibilités (Grecques)")
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Δ (Delta)", f"{delta:.4f}")
-        col2.metric("Γ (Gamma)", f"{gamma:.4f}")
-        col3.metric("Vega", f"{vega:.4f}")
-        col4.metric("Volga", f"{volga:.4f}")
-    except Exception:
-        st.warning("⚠️ Impossible de calculer certaines grecques pour cette configuration.")
-
+    st.subheader("📈 Sensibilités (Grecques)")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Δ (Delta)", f"{delta:.4f}")
+    col2.metric("Γ (Gamma)", f"{gamma:.4f}")
+    col3.metric("Vega", f"{vega:.4f}")
+    col4.metric("Volga", f"{volga:.4f}")
+    
     # --- Graphique de l’arbre ---
     st.subheader("🌳 Visualisation de l’arbre")
     show_values = st.toggle("Afficher les valeurs d’option (au lieu des sous-jacents)", value=False)

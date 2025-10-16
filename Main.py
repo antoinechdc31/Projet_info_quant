@@ -286,8 +286,8 @@ def test_avec_div2():
     option = Option(
         K=102,
         mat=mat,     # ✅ utiliser la vraie maturité
-        opt_type="call",
-        style="european",
+        opt_type="put",
+        style="american",
         isDiv=True,
         div=3,
         date_div=date_div,
@@ -297,7 +297,7 @@ def test_avec_div2():
     # --- Pricing ---
     prix_euro = tree.price_option_recursive(option)
     prix_back = tree.price_node_backward(option)
-    # tree.plot_tree(option)
+    # tree.plot_tree(max_levels=40)
     prix_bs = black_scholes(S0=100, K=102, T=mat, r=0.05, sigma=0.3, type="call")
 
     print("\n===== Test avec dividende discret =====")
