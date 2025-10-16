@@ -6,7 +6,11 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import sys
 sys.setrecursionlimit(5000)  # limite de recursion car on avait un pb de dépassement de max depth
- 
+from OneDimDerivative import OneDimDerivative
+import copy
+
+
+
 class Tree : 
 
     def __init__(self, market: Market, N: int, delta_t):
@@ -79,7 +83,7 @@ class Tree :
             num = max(0, (option.date_div - d0).days)
             den = max(1, (T - d0).days)
             index = num / den
-            print(f"Position du dividende dans la maturité : {index:.4f}")
+            #print(f"Position du dividende dans la maturité : {index:.4f}")
 
         
         div_already_applied = False
@@ -91,7 +95,7 @@ class Tree :
                 if index > i / self.N and index <= (i + 1) / self.N:
                     is_div_date = True
                     div_already_applied = True  # ⚡ le dividende ne sera plus appliqué ensuite
-                    print(f"→ Dividende appliqué au pas {i}/{self.N} ({index:.4f})")
+                   # print(f"→ Dividende appliqué au pas {i}/{self.N} ({index:.4f})")
             
             node_trunc = self.build_columns(node_trunc, is_div_date, option)
 
@@ -107,7 +111,7 @@ class Tree :
             return 0.0
 
         if node.Nmid is None or (node.Nup is None and node.Ndown is None): # si c'est la derniere colonne, on retourne le payoff
-            print("⚠️ auto-cycle détecté au niveau", node.level, "S =", node.underlying)
+            #print("⚠️ auto-cycle détecté au niveau", node.level, "S =", node.underlying)
             val = option.payoff(node.underlying)
             node.option_value = val
         else : # sinon on calcule avec la formule donnée par le cours -> DF * sum(V * proba)

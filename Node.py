@@ -19,7 +19,7 @@ class Node :
         self.proba_totale = proba_totale
         pass
     
-    def create_brick(self, trunc, direction="up", div=0, is_div=False, epsilon=1e-6):
+    def create_brick(self, trunc, direction="up", div=0, is_div=False, epsilon=1e-9):
 
         Smid = self.underlying * (math.exp(self.tree.market.r * self.tree.dt)) - div
         Sup = Smid * self.tree.alpha
@@ -27,7 +27,7 @@ class Node :
 
         # Si la probabilité totale est trop faible : on ne crée qu'un Nmid "plat"
         if self.proba_totale < epsilon:
-            print ("Proba totale trop faible, on ne crée qu'un Nmid plat")
+           # print ("Proba totale trop faible, on ne crée qu'un Nmid plat")
             if self.Nmid is None:
                 self.Nmid = Node(Smid, self.tree, self.level, None, None, 0,proba_totale=self.proba_totale)
             else:
@@ -39,7 +39,7 @@ class Node :
 
         # On calcule les probabilités locales
         #Pmid, Pup, Pdown = self.calcul_proba(div)
-        print("proba ok")
+       # print("proba ok")
         # Cas du tronc initial
         if trunc:
 

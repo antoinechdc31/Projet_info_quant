@@ -8,7 +8,9 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 from dateutil.relativedelta import relativedelta
-
+from OneDimDerivative import OneDimDerivative
+from OptionPricingParam import OptionPricingParam
+from Greek import _PriceTreeBackward_S0
 def test_node_prices():
     market = Market(S0=100, r=0.03, sigma=0.2)
     tree = Tree(market, N = 1, delta_t= 1) 
@@ -223,25 +225,30 @@ def compare_tree_bs_vs_strike():
 
 def test_avec_div2():
     # --- Paramètres du marché ---
-    market = Market(S0=100, r=0.05, sigma=0.2)
+    market = Market(S0=100, r=0.05, sigma=0.8)
     tree = Tree(market, N=100, delta_t=1/100)
 
     # --- Date du dividende ---
-    date_div = datetime(2025, 12, 9)
+    date_div = datetime(2025, 10, 26)
 
     # --- Définition de l'option avec dividende ---
     option = Option(
-        K=60,
+        K=40,
         mat=1,  # maturité 1 an
-        opt_type="call",
+        opt_type="put",
         style="european",
         isDiv=True,
-        div = 6,           # dividende discret de 10
+        div = 0,       
         date_div=date_div
     )
-
+    start1 = time.time()
     prix_euro = tree.price_option_recursive(option)
+    end1 = time.time()
+
+    start2 = time.time()
     prix_back = tree.price_node_backward(option)
+    end2 = time.time()
+    
     prix_bs = black_scholes(S0=100, K=60, T=1, r=0.01, sigma=0.3, type="call")
 
     print("\n===== Test avec dividende discret =====")
@@ -253,6 +260,13 @@ def test_avec_div2():
     print("---------------------------------------")
     print("→ On devrait observer que le prix avec dividende est PLUS FAIBLE\n"
           "  car le sous-jacent chute à la date de versement du dividende.")
+       
+    dS = OneDimDerivative(_PriceTreeBackward_S0, OptionPricingParam(market, tree, option), shift=0.5)
+    print("Delta =", dS.first(market.S0))
+    print("Gamma =", dS.second(market.S0))
+    print("temps recursif = ",end1 - start1)
+    print("temps backward = ",end2 - start2)
+
 
 def plot_trinomial_tree(S0=100, r=0.03, sigma=0.2,N=40, delta_t=None,K=100, mat=1, opt_type="call", style="european",isDiv=False, div=0, date_div=None,max_cols=20, annotate=False):
    
@@ -341,14 +355,10 @@ def plot_trinomial_tree(S0=100, r=0.03, sigma=0.2,N=40, delta_t=None,K=100, mat=
 
 
 if __name__ == "__main__":
-    #test_avec_div2() 
+    test_avec_div2() 
     #convergence_recursive() #=> Convergence de l'arbre récursif vers black scholes
     #compare_tree_bs_vs_strike() #=> Comparaison des prix en fonction du strike
     #test_plot_tree()
-    plot_trinomial_tree(
-    S0=100, r=0.05, sigma=0.2,
-    N=60, delta_t=1/60,
-    K=80, mat=1, opt_type="call", style="european",
-    isDiv=True, div=6, date_div=datetime(2025, 12, 9),
-    max_cols=100, annotate=False
-)
+    #plot_trinomial_tree(S0=100, r=0.1, sigma=0.2,N=60, delta_t=1/60,K=80, mat=1, opt_type="call", style="european",isDiv=True, div=6, date_div=datetime(2025, 12, 9),max_cols=100, annotate=False)
+#si on demande le vega on doit trouver la variation de prix pour 1%
+#sur le papier => regularite quand on bouge S0 => est ce que le gamma saute
