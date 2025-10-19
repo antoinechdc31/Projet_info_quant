@@ -214,6 +214,7 @@ class Tree :
     def delta(self,option, h=1e-2):
 
         S0 = self.market.S0
+        h = h * S0 # 1% du prix
         market_up = Market(S0 + h, self.market.r, self.market.sigma)
         market_down = Market(S0 - h, self.market.r, self.market.sigma)
 
@@ -235,61 +236,148 @@ class Tree :
         print(f"Δ (Delta) = {delta:.6f}")
         return delta
 
+    # def gamma(self, option, h=1e-2):
+
+    #     S0 = self.market.S0
+    #     h = h * S0
+    #     market_up = Market(S0 + h, self.market.r, self.market.sigma)
+    #     market_down = Market(S0 - h, self.market.r, self.market.sigma)
+    #     tree_up = Tree(market_up, self.N, self.dt)
+    #     # tree_up.tree_construction2()
+    #     tree_down = Tree(market_down, self.N, self.dt)
+
+    #     price_up = tree_up.price_option_recursive(option)
+    #     price_down = tree_down.price_option_recursive(option)
+    #     price_0 = self.price_option_recursive(option)
+
+    #     gamma = (price_up - 2 * price_0 + price_down) / ((h)**2) # formule du cours
+    #     print(f"Γ (Gamma) = {gamma:.6f}")
+    #     return gamma
+
     def gamma(self, option, h=1e-2):
 
         S0 = self.market.S0
-        
-        market_up = Market(S0 + h, self.market.r, self.market.sigma)
-        market_down = Market(S0 - h, self.market.r, self.market.sigma)
-        tree_up = Tree(market_up, self.N, self.dt)
-        # tree_up.tree_construction2()
-        tree_down = Tree(market_down, self.N, self.dt)
+        h = h * S0  # 1% du prix
+        r = self.market.r
+        sigma = self.market.sigma
 
+        # 3 marchés indépendants
+        market_up = Market(S0 + h, r, sigma)
+        market_down = Market(S0 - h, r, sigma)
+        market_0 = Market(S0, r, sigma)
+
+        # 3 arbres indépendants
+        tree_up = Tree(market_up, self.N, self.dt)
+        tree_down = Tree(market_down, self.N, self.dt)
+        tree_0 = Tree(market_0, self.N, self.dt)
+
+        # Prix sur chaque arbre
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
-        price_0 = self.price_option_recursive(option)
+        price_0 = tree_0.price_option_recursive(option)
 
-        gamma = (price_up - 2 * price_0 + price_down) / ((h)**2) # formule du cours
+        # Gamma par différences centrées
+        gamma = (price_up - 2 * price_0 + price_down) / (h ** 2)
         print(f"Γ (Gamma) = {gamma:.6f}")
         return gamma
 
-    def vega(self, option, hVol=1e-2):
+    def vega(self, option, hVol=0.01):
+        """
+        Calcule le Vega : sensibilité du prix à la volatilité.
+        hVol = variation relative (ex: 0.01 = 1%)
+        """
 
         sigma = self.market.sigma
-        tree_up = Tree(self.market, self.N, self.dt)
-        tree_down = Tree(self.market, self.N, self.dt)
+        r = self.market.r
+        S0 = self.market.S0
 
-        tree_up.market.sigma = sigma * (1 + hVol)
-        tree_down.market.sigma = sigma * (1 - hVol)
+        # Marchés indépendants
+        market_up = Market(S0, r, sigma * (1 + hVol))
+        market_down = Market(S0, r, sigma * (1 - hVol))
 
+        # Arbres indépendants
+        tree_up = Tree(market_up, self.N, self.dt)
+        tree_down = Tree(market_down, self.N, self.dt)
+
+        # Calcul des prix
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
 
+        # Différence centrée
         vega = (price_up - price_down) / (2 * sigma * hVol)
         print(f"Vega = {vega:.6f}")
         return vega
 
-    def volga(self, option, hVol=1e-2):
+
+    def volga(self, option, hVol=0.05):
+        """
+        Calcule la Volga (Vomma) : courbure du prix par rapport à la volatilité.
+        """
 
         sigma = self.market.sigma
+        r = self.market.r
+        S0 = self.market.S0
 
-        # Copies indépendantes de l’arbre
-        tree_up = Tree(self.market, self.N, self.dt)
-        tree_down = Tree(self.market, self.N, self.dt)
+        # Marchés indépendants
+        market_up = Market(S0, r, sigma * (1 + hVol))
+        market_down = Market(S0, r, sigma * (1 - hVol))
+        market_0 = Market(S0, r, sigma)
 
-        tree_up.market.sigma = sigma * (1 + hVol)
-        tree_down.market.sigma = sigma * (1 - hVol)
+        # Arbres indépendants
+        tree_up = Tree(market_up, self.N, self.dt)
+        tree_down = Tree(market_down, self.N, self.dt)
+        tree_0 = Tree(market_0, self.N, self.dt)
 
-        # Calcul des prix pour sigma+h, sigma, sigma−h
+        # Calcul des prix
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
-        price_0 = self.price_option_recursive(option)
+        price_0 = tree_0.price_option_recursive(option)
 
-        # Formule des différences centrées secondes
-        Volga = (price_up - 2 * price_0 + price_down) / ((sigma * hVol) ** 2)
+        # Différence centrée seconde
+        volga = (price_up - 2 * price_0 + price_down) / ((sigma * hVol) ** 2)
+        print(f"Volga (Vomma) = {volga:.6f}")
+        return volga
 
-        print(f"Volga (Vomma) = {Volga:.6f}")
-        return Volga
+
+
+    # def vega(self, option, hVol=1e-2):
+
+    #     sigma = self.market.sigma
+    #     tree_up = Tree(self.market, self.N, self.dt)
+    #     tree_down = Tree(self.market, self.N, self.dt)
+
+    #     tree_up.market.sigma = sigma * (1 + hVol)
+    #     tree_down.market.sigma = sigma * (1 - hVol)
+
+    #     price_up = tree_up.price_option_recursive(option)
+    #     price_down = tree_down.price_option_recursive(option)
+
+    #     vega = (price_up - price_down) / (2 * sigma * hVol)
+    #     print(f"Vega = {vega:.6f}")
+    #     return vega
+
+    # def volga(self, option, hVol=1e-2):
+
+    #     sigma = self.market.sigma
+
+    #     # Copies indépendantes de l’arbre
+    #     tree_up = Tree(self.market, self.N, self.dt)
+    #     tree_down = Tree(self.market, self.N, self.dt)
+
+    #     tree_up.market.sigma = sigma * (1 + hVol)
+    #     tree_down.market.sigma = sigma * (1 - hVol)
+
+    #     # Calcul des prix pour sigma+h, sigma, sigma−h
+    #     price_up = tree_up.price_option_recursive(option)
+    #     price_down = tree_down.price_option_recursive(option)
+    #     price_0 = self.price_option_recursive(option)
+
+    #     # Formule des différences centrées secondes
+    #     Volga = (price_up - 2 * price_0 + price_down) / ((sigma * hVol) ** 2)
+
+    #     print(f"Volga (Vomma) = {Volga:.6f}")
+    #     return Volga
+
 
 ################# METHODE SANS BRIQUE ###################
 
