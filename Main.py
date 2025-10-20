@@ -145,15 +145,23 @@ def benchmark_tree(max_N=5000, step=100):
 
 def comparaison_euro_amer(): # ici on verifie que l americain est + cher 
     # lorsque c'est call et r negatif
-    market = Market(S0=50, r= 0.7, sigma=0.8)
+    market = Market(S0=50, r = 0.7, sigma=0.8)
     tree = Tree(market, N=100, delta_t=3/100)
-    option = Option(K=60, mat=3, opt_type="call", style="european")
+    option = Option(K=60, mat=3, opt_type="put", style="european")
 
     prix_euro = tree.price_option_recursive(option)
 
-    option = Option(K=60, mat=3, opt_type="call", style="american")
+    option = Option(K=60, mat=3, opt_type="put", style="american")
 
     prix_amer = tree.price_option_recursive(option)
+
+    market = Market(S0=50, r=0.05, sigma=0.8)
+    tree = Tree(market, N=100, delta_t=3/100)
+    option = Option(K=60, mat=3, opt_type="put", style="european")
+    print(tree.price_option_recursive(option))
+    option = Option(K=60, mat=3, opt_type="put", style="american")
+    print(tree.price_option_recursive(option))
+
 
     print("Prix euro =", prix_euro)
     print("Prix americain =", prix_amer)
@@ -172,5 +180,158 @@ def test_avec_div() :
     print("Prix de l'arbre brique : ", prix_euro)
     print("Prix de l'arbre classique", prix_bs ) # on voit que l'arbre brique est plus court
 
+
+def plot_trinomial_tree(S0=100, r=0.03, sigma=0.2,N=40, delta_t=None,K=100, mat=1, opt_type="call", style="european",isDiv=False, div=0, date_div=None,max_cols=20, annotate=False):
+   
+    # — Préparation
+    if delta_t is None:
+        delta_t = 1 / N
+
+    market = Market(S0=S0, r=r, sigma=sigma)
+    tree = Tree(market, N=N, delta_t=delta_t)
+    option = Option(K=K, mat=mat, opt_type=opt_type, style=style,
+                    isDiv=isDiv, div=div, date_div=date_div)
+
+    # — Construction de l'arbre (méthode brique)
+    tree.tree_construction2(option)
+
+    # — Parcours des nœuds (on ne suit QUE Nup/Nmid/Ndown pour éviter tout cycle vertical)
+    nodes = []      # (col, level, S, node_id)
+    segments = []   # ((x1,y1), (x2,y2))
+    visited = set()
+
+    def walk(node, t=0):
+        if node is None or t > max_cols:
+            return
+        nid = id(node)
+        if (nid, t) in visited:
+            return
+        visited.add((nid, t))
+
+        nodes.append((t, node.level, node.underlying, nid))
+
+        # enfants → colonne t+1
+        for child_name in ("Ndown", "Nmid", "Nup"):
+            child = getattr(node, child_name)
+            if child is not None:
+                segments.append(((t, node.level), (t + 1, child.level)))
+                walk(child, t + 1)
+
+    walk(tree.root, 0)
+
+    # — Plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # arêtes
+    for (x1, y1), (x2, y2) in segments:
+        ax.plot([x1, x2], [y1, y2], linewidth=0.8, alpha=0.5)
+
+    # nœuds (colorés par S)
+    xs = [x for x, _, _, _ in nodes]
+    ys = [y for _, y, _, _ in nodes]
+    Ss = [s for _, _, s, _ in nodes]
+    sc = ax.scatter(xs, ys, c=Ss, cmap="viridis", s=18, zorder=3)
+    cbar = plt.colorbar(sc, ax=ax)
+    cbar.set_label("Sous-jacent S")
+
+    # annotations optionnelles
+    if annotate:
+        for x, y, s, _ in nodes:
+            ax.text(x, y + 0.08, f"{s:.1f}", ha="center", va="bottom", fontsize=7, alpha=0.8)
+
+    # ligne verticale à la date de dividende (si applicable)
+    if isDiv and date_div is not None:
+        d0 = datetime.now()
+        T  = d0 + relativedelta(years=mat)
+        num = max(0, (date_div - d0).days)
+        den = max(1, (T - d0).days)
+        index = num / den  # fraction de la maturité
+        # colonne à laquelle on applique le dividende dans tree_construction2
+        # (même logique que ton code : seuil dans (i/N, (i+1)/N])
+        div_step = None
+        for i in range(1, N + 1):
+            if index > i / N and index <= (i + 1) / N:
+                div_step = i
+                break
+        if div_step is not None and div_step <= max_cols:
+            ax.axvline(div_step, linestyle="--", alpha=0.6, color="red")
+            ax.text(div_step, ax.get_ylim()[1], f" div ({div}) ", color="red",
+                    va="top", ha="left", fontsize=8, bbox=dict(facecolor="white", alpha=0.6, edgecolor="none"))
+
+    ax.set_xlabel("Colonne (timestep)")
+    ax.set_ylabel("Niveau")
+    ax.set_title("Arbre trinomial (structure Nup/Nmid/Ndown)")
+    ax.grid(True, linestyle="--", alpha=0.3)
+    ax.set_xlim(-0.3, min(max_cols + 0.3, N + 0.3))
+    plt.tight_layout()
+    plt.show()
+
+
+def test_avec_div2():
+    # --- Dates importantes ---
+    calc_date = datetime(2025, 9, 1)
+    maturity = datetime(2026, 9, 1)
+    date_div = datetime(2026, 4, 21)
+
+    # --- Discrétisation temporelle ---
+    n = 400
+    mat = (maturity - calc_date).days / 365  # maturité en années (≈ 1.00)
+    deltat = mat / n                         # pas de temps
+
+    # --- Paramètres du marché ---
+    market = Market(S0=100, r=0.05, sigma=0.3)
+    tree = Tree(market, N=n, delta_t=deltat)
+
+    # --- Option avec dividende discret ---
+    option = Option(
+        K=102,
+        mat=mat,     # ✅ utiliser la vraie maturité
+        opt_type="put",
+        style="american",
+        isDiv=True,
+        div=3,
+        date_div=date_div,
+        calc_date=calc_date       # utile si ton modèle l’utilise
+    )
+
+    # --- Pricing ---
+    prix_euro = tree.price_option_recursive(option)
+    prix_back = tree.price_node_backward(option)
+    # tree.plot_tree(max_levels=40)
+    prix_bs = black_scholes(S0=100, K=102, T=mat, r=0.05, sigma=0.3, type="call")
+
+    print("\n===== Test avec dividende discret =====")
+    print(f"Date de calcul : {calc_date.strftime('%Y-%m-%d')}")
+    print(f"Date du dividende : {date_div.strftime('%Y-%m-%d')}")
+    print(f"Maturité : {maturity.strftime('%Y-%m-%d')} ({mat:.4f} an)")
+    print("---------------------------------------")
+    print(f"Prix via arbre trinomial (avec div) : {prix_euro:.6f}")
+    print(f"Prix backward (avec div)            : {prix_back:.6f}")
+    print(f"Prix Black-Scholes (sans div)       : {prix_bs:.6f}")
+    print("---------------------------------------")
+    print("→ Le prix avec dividende doit être PLUS FAIBLE\n"
+          "  car le sous-jacent chute à la date de versement du dividende.")
+
+def test_greeks_with_div() :
+    from datetime import datetime
+    market = Market(S0=70, r=0.01, sigma=0.2)
+    tree = Tree(market, N=100, delta_t=1/100)
+    date_div = datetime(2025, 12, 9)
+
+    option = Option(
+        K=60,
+        mat=1,
+        opt_type="call",
+        style="european",
+        isDiv=True,
+        div=0,
+        date_div=date_div
+    )
+
+    greeks = tree.compute_greeks(option)
+    print("\n=== Grecques avec dividende discret ===")
+    for k, v in greeks.items():
+        print(f"{k:<8s} : {v:.6f}")
+
 if __name__ == "__main__":
-    test_avec_div()
+    test_avec_div2()
