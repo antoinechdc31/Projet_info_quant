@@ -279,15 +279,15 @@ def test_avec_div2():
     deltat = mat / n                         # pas de temps
 
     # --- Paramètres du marché ---
-    market = Market(S0=100, r=0.05, sigma=0.3)
+    market = Market(S0=100, r=0.05, sigma=0.7)
     tree = Tree(market, N=n, delta_t=deltat)
 
     # --- Option avec dividende discret ---
     option = Option(
         K=102,
         mat=mat,     # ✅ utiliser la vraie maturité
-        opt_type="put",
-        style="american",
+        opt_type="call",
+        style="european",
         isDiv=True,
         div=3,
         date_div=date_div,

@@ -8,10 +8,10 @@ from BlackScholes import black_scholes
 import time
 
 # ============ PAGE CONFIG ============
-st.set_page_config(page_title="🌲 Arbre Trinomial", layout="wide")
+st.set_page_config(page_title="🌲 Arbre Trinomial avec prunning", layout="wide")
 
 # ============ TITRE GLOBAL ============
-st.title("🌳 Pricing d’Options via Arbre Trinomial")
+st.title("🌳 Pricing d’Options avec prunning !!! ")
 st.caption("Interface à onglets — claire, moderne et structurée 🧭")
 
 # ============ PARAMÈTRES COMMUNS ============

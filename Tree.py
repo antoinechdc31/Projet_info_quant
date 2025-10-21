@@ -108,7 +108,8 @@ class Tree :
         if node is None : # si le noeud n'existe pas on retourne 0
             return 0.0
 
-        if node.Nmid is None : # si c'est la derniere colonne, on retourne le payoff
+        if node.Nmid is None or (node.Nup is None and node.Ndown is None): # si c'est la derniere colonne, on retourne le payoff
+            #print("⚠️ auto-cycle détecté au niveau", node.level, "S =", node.underlying)
             val = option.payoff(node.underlying)
             node.option_value = val
         else : # sinon on calcule avec la formule donnée par le cours -> DF * sum(V * proba)
@@ -196,9 +197,9 @@ class Tree :
 
     def pricing_noeud_indiv(self, option , current): # fonction generale pour pricer un noeud (pas feuille)
 
-        Vmid = current.Nmid.option_value
-        Vup = current.Nup.option_value
-        Vdown = current.Ndown.option_value
+        Vmid  = current.Nmid.option_value  if current.Nmid  else 0.0
+        Vup   = current.Nup.option_value   if current.Nup   else 0.0
+        Vdown = current.Ndown.option_value if current.Ndown else 0.0
 
         p_mid, p_up, p_down = current.calcul_proba()
         df = math.exp(-self.market.r * self.dt)
