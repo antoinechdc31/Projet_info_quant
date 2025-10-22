@@ -99,7 +99,7 @@ class Tree :
 
     def price_option_recursive(self, option):
 
-        self.tree_construction2(option) # créaction de l'arbre
+        # self.tree_construction2(option) # créaction de l'arbre
         # memo = {} # valeur des feuilles deja calculée pour eviter le calcul plusieurs fois
         return self.price_node2(self.root ,option) # appel de la fct recursive
 
@@ -221,14 +221,9 @@ class Tree :
 
         # Reconstruit les arbres complets
         tree_up = Tree(market_up, self.N, self.dt)
-        # tree_up.tree_construction2()
+        tree_up.tree_construction2(option)
         tree_down = Tree(market_down, self.N, self.dt)
-        # tree_down.tree_construction2()
-        # tree_up = Tree(self.market, self.N, self.dt)
-        # tree_down = Tree(self.market, self.N, self.dt)
-
-        # tree_up.market.S0 = S0 + h
-        # tree_down.market.S0 = S0 - h
+        tree_down.tree_construction2(option)
 
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
@@ -272,6 +267,9 @@ class Tree :
         tree_down = Tree(market_down, self.N, self.dt)
         tree_0 = Tree(market_0, self.N, self.dt)
 
+        tree_up.tree_construction2(option)
+        tree_down.tree_construction2(option)
+        tree_0.tree_construction2(option)
         # Prix sur chaque arbre
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
@@ -299,7 +297,9 @@ class Tree :
         # Arbres indépendants
         tree_up = Tree(market_up, self.N, self.dt)
         tree_down = Tree(market_down, self.N, self.dt)
-
+        
+        tree_up.tree_construction2(option)
+        tree_down.tree_construction2(option)
         # Calcul des prix
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
@@ -329,6 +329,10 @@ class Tree :
         tree_down = Tree(market_down, self.N, self.dt)
         tree_0 = Tree(market_0, self.N, self.dt)
 
+        tree_up.tree_construction2(option)
+        tree_down.tree_construction2(option)
+        tree_0.tree_construction2(option)
+        
         # Calcul des prix
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)

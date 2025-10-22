@@ -279,7 +279,7 @@ def test_avec_div2():
     deltat = mat / n                         # pas de temps
 
     # --- Paramètres du marché ---
-    market = Market(S0=100, r=0.05, sigma=0.7)
+    market = Market(S0=100, r=0.05, sigma=0.9)
     tree = Tree(market, N=n, delta_t=deltat)
 
     # --- Option avec dividende discret ---
@@ -295,6 +295,7 @@ def test_avec_div2():
     )
 
     # --- Pricing ---
+    tree.tree_construction2(option)
     prix_euro = tree.price_option_recursive(option)
     prix_back = tree.price_node_backward(option)
     # tree.plot_tree(max_levels=40)

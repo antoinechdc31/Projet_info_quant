@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 from Market import Market
 from Option import Option
 from Tree import Tree
+import pandas as pd
 from BlackScholes import black_scholes
 import time
+from BlackScholes import black_scholes_greeks
 
 # ============ PAGE CONFIG ============
 st.set_page_config(page_title="🌲 Arbre Trinomial avec prunning", layout="wide")
@@ -63,7 +65,7 @@ with tab1:
             tree = Tree(market, N=N, delta_t=delta_t)
             option = Option(K=K, mat=mat, opt_type=opt_type, style=style,
                             isDiv=has_div, div=div, date_div=date_div, calc_date=calc_date)
-
+            tree.tree_construction2(option)
             prix_tri = tree.price_option_recursive(option)
             prix_back = tree.price_node_backward(option)
             prix_bs = black_scholes(S0=S0, K=K, T=mat, r=r, sigma=sigma, type=opt_type)
@@ -88,6 +90,28 @@ with tab1:
         c2.metric("Γ Gamma", f"{gamma:.4f}")
         c3.metric("Vega", f"{vega:.4f}")
         c4.metric("Volga", f"{volga:.4f}")
+
+        delta_bs, gamma_bs, vega_bs, volga_bs = black_scholes_greeks(S0, K, mat, r, sigma, opt_type)
+
+        greeks_data = {
+            "Grecque": ["Delta (Δ)", "Gamma (Γ)", "Vega", "Volga (Vomma)"],
+            "Trinomial": [delta, gamma, vega, volga],
+            "Black-Scholes": [delta_bs, gamma_bs, vega_bs, volga_bs],
+            "Écart relatif (%)": [
+                100 * abs((delta - delta_bs) / delta_bs) if delta_bs != 0 else 0,
+                100 * abs((gamma - gamma_bs) / gamma_bs) if gamma_bs != 0 else 0,
+                100 * abs((vega - vega_bs) / vega_bs) if vega_bs != 0 else 0,
+                100 * abs((volga - volga_bs) / volga_bs) if volga_bs != 0 else 0,
+            ],
+        }
+
+        df_greeks = pd.DataFrame(greeks_data)
+        st.markdown("### ⚖️ Comparaison des Grecques — Trinomial vs Black-Scholes")
+        st.dataframe(df_greeks.style.format({
+            "Trinomial": "{:.6f}",
+            "Black-Scholes": "{:.6f}",
+            "Écart relatif (%)": "{:.2f}"
+        }), use_container_width=True)
 
 # -------------------------------
 # 🌲 Onglet 2 : Visualisation de l’Arbre
