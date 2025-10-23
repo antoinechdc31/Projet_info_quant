@@ -24,47 +24,47 @@ class Tree :
     def build_columns(self, node_trunc, is_div_date = False, option = None) :
 
         if is_div_date :
-            
             div = option.div
-
+        else :
+            div = 0
             # current_node = node_trunc
-            node_trunc.create_brick(True, direction = "up", div = div, is_div = is_div_date) # on crée la brick du tronc, la premiere brick de la colonne
-            current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
+        node_trunc.create_brick(True, direction = "up", div = div) # on crée la brick du tronc, la premiere brick de la colonne
+        current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
 
-            while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
-                current_node.create_brick(False, direction = "up", div = div) # on crée la brique avec comme direction Up
-                current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
+        while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
+            current_node.create_brick(False, direction = "up", div = div) # on crée la brique avec comme direction Up
+            current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
+        
+        current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
+        # avec comme diréction down
+
+        while current_node is not None:
+            current_node.create_brick(False, direction = "down", div = div)
+            current_node = current_node.down
+
+        # else : 
+        #     # current_node = node_trunc
+        #     node_trunc.create_brick(True, direction = "up") # on crée la brick du tronc, la premiere brick de la colonne
+        #     current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
+        #     # c'est à dire :    
+        #     #           Node up
+        #     #             |     Nup create avec create_bric du tronc
+        #     #             |   /
+        #     #           Trunc --- Nmid
+        #     #             |  \
+        #     #             |    Ndown 
+        #     #           Node down
+
+        #     while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
+        #         current_node.create_brick(False, direction = "up") # on crée la brique avec comme direction Up
+        #         current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
             
-            current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
-            # avec comme diréction down
+        #     current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
+        #     # avec comme diréction down
 
-            while current_node is not None:
-                current_node.create_brick(False, direction = "down", div = div)
-                current_node = current_node.down
-
-        else : 
-            # current_node = node_trunc
-            node_trunc.create_brick(True, direction = "up") # on crée la brick du tronc, la premiere brick de la colonne
-            current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
-            # c'est à dire :    
-            #           Node up
-            #             |     Nup create avec create_bric du tronc
-            #             |   /
-            #           Trunc --- Nmid
-            #             |  \
-            #             |    Ndown 
-            #           Node down
-
-            while current_node is not None: # temps que le noeud n'est pas None (le noeud up sur la colonne de precedent)
-                current_node.create_brick(False, direction = "up") # on crée la brique avec comme direction Up
-                current_node = current_node.up # le noeud suivant va etre celui au dessus dans le sens de la colonne
-            
-            current_node = node_trunc.down # on fait la meme chose avec le noeud en dessous dans le sens de la colonne
-            # avec comme diréction down
-
-            while current_node is not None :
-                current_node.create_brick(False, direction = "down")
-                current_node = current_node.down
+        #     while current_node is not None :
+        #         current_node.create_brick(False, direction = "down")
+        #         current_node = current_node.down
 
         future_node_trunc = node_trunc.Nmid # on recupere le tronc de la prochaine colonne pour lui envoyer
     
@@ -82,19 +82,16 @@ class Tree :
             den = max(1, (T - d0).days)
             index = num / den
             print(f"Position du dividende dans la maturité : {index:.4f}")
-
-        
         div_already_applied = False
 
         for i in range(1, self.N + 1):
             is_div_date = False
-
             if option.isDiv and (not div_already_applied):
                 if index > i / self.N and index <= (i + 1) / self.N:
                     is_div_date = True
                     div_already_applied = True  # ⚡ le dividende ne sera plus appliqué ensuite
                     print(f"→ Dividende appliqué au pas {i}/{self.N} ({index:.4f})")
-            #print(i)
+            
             node_trunc = self.build_columns(node_trunc, is_div_date, option)
 
     def price_option_recursive(self, option):
@@ -212,7 +209,7 @@ class Tree :
 
         return val
 
-    def delta(self,option, h=1e-2):
+    def delta(self,option, h = 1e-2):
 
         S0 = self.market.S0
         h = h * S0 # 1% du prix
@@ -231,24 +228,6 @@ class Tree :
         delta = (price_up - price_down) / (2 * h)
         print(f"Δ (Delta) = {delta:.6f}")
         return delta
-
-    # def gamma(self, option, h=1e-2):
-
-    #     S0 = self.market.S0
-    #     h = h * S0
-    #     market_up = Market(S0 + h, self.market.r, self.market.sigma)
-    #     market_down = Market(S0 - h, self.market.r, self.market.sigma)
-    #     tree_up = Tree(market_up, self.N, self.dt)
-    #     # tree_up.tree_construction2()
-    #     tree_down = Tree(market_down, self.N, self.dt)
-
-    #     price_up = tree_up.price_option_recursive(option)
-    #     price_down = tree_down.price_option_recursive(option)
-    #     price_0 = self.price_option_recursive(option)
-
-    #     gamma = (price_up - 2 * price_0 + price_down) / ((h)**2) # formule du cours
-    #     print(f"Γ (Gamma) = {gamma:.6f}")
-    #     return gamma
 
     def gamma(self, option, h=1e-2):
 
@@ -332,7 +311,7 @@ class Tree :
         tree_up.tree_construction2(option)
         tree_down.tree_construction2(option)
         tree_0.tree_construction2(option)
-        
+
         # Calcul des prix
         price_up = tree_up.price_option_recursive(option)
         price_down = tree_down.price_option_recursive(option)
@@ -342,83 +321,114 @@ class Tree :
         volga = (price_up - 2 * price_0 + price_down) / ((sigma * hVol) ** 2)
         print(f"Volga (Vomma) = {volga:.6f}")
         return volga
+    
+    def plot_trinomial_tree(self, option=None, max_cols=20, annotate=False, show=True):
+        """
+        Affiche un graphique Matplotlib représentant l'arbre trinomial.
+        L'axe vertical correspond à la valeur réelle du sous-jacent S,
+        ce qui rend visibles les sauts dus aux dividendes.
 
-    def plot_tree(self, option=None, show_option_values=False, max_depth=10):
+        Paramètres :
+        - option : instance de Option (obligatoire)
+        - max_cols : nombre maximum de colonnes affichées
+        - annotate : affiche les valeurs S sur les nœuds
+        - show : si False, renvoie la figure (utile pour Streamlit)
         """
-        Affiche l’arbre trinomial avec Matplotlib uniquement.
-        - option : objet Option pour récupérer les valeurs d’option
-        - show_option_values : booléen pour afficher la valeur d’option au lieu du sous-jacent
-        - max_depth : limite du nombre de colonnes affichées
-        """
-        # Construit l’arbre
+
+        import matplotlib.pyplot as plt
+        from datetime import datetime
+        from dateutil.relativedelta import relativedelta
+
+        if option is None:
+            raise ValueError("Vous devez fournir une option pour construire l'arbre.")
+
+        # Construction de l’arbre complet
         self.tree_construction2(option)
 
-        fig, ax = plt.subplots(figsize=(14, 8))
-        ax.set_title(f"🌲 Arbre Trinomial ({'Valeurs option' if show_option_values else 'Sous-jacents'})", fontsize=14)
-        ax.axis("off")
+        nodes = []      # (col, S)
+        segments = []   # ((x1, S1), (x2, S2))
+        visited = set()
 
-        # Dictionnaire pour stocker les nœuds par niveau
-        niveaux = {}
-        queue = [(self.root, 0)]  # (node, niveau)
+        def walk(node, t=0):
+            """Parcours récursif pour collecter les nœuds et les liens."""
+            if node is None or t > max_cols:
+                return
+            nid = id(node)
+            if (nid, t) in visited:
+                return
+            visited.add((nid, t))
 
-        while queue:
-            node, niveau = queue.pop(0)
-            if niveau > max_depth:
-                continue
-            if niveau not in niveaux:
-                niveaux[niveau] = []
-            niveaux[niveau].append(node)
+            # Enregistre le nœud
+            nodes.append((t, node.underlying))
 
-            # Enfants
-            for child in [node.Ndown, node.Nmid, node.Nup]:
+            # Enregistre les arêtes
+            for child_name in ("Ndown", "Nmid", "Nup"):
+                child = getattr(node, child_name)
                 if child is not None:
-                    queue.append((child, niveau + 1))
+                    segments.append(((t, node.underlying), (t + 1, child.underlying)))
+                    walk(child, t + 1)
 
-        # Calcul des positions horizontales
-        y_offset = 0
-        for niveau, noeuds in niveaux.items():
-            x_positions = list(range(len(noeuds)))
-            for x, node in zip(x_positions, noeuds):
-                y = -niveau
-                label = (
-                    f"{node.option_value:.2f}"
-                    if show_option_values and node.option_value is not None
-                    else f"{node.underlying:.2f}"
-                )
+        # --- Parcours de l’arbre ---
+        walk(self.root, 0)
 
+        # --- Tracé du graphe ---
+        fig, ax = plt.subplots(figsize=(12, 7))
+
+        # Lignes reliant les nœuds
+        for (x1, s1), (x2, s2) in segments:
+            ax.plot([x1, x2], [s1, s2], color="gray", linewidth=0.8, alpha=0.5)
+
+        # Nœuds (colorés par la valeur du sous-jacent)
+        xs = [x for x, _ in nodes]
+        Ss = [s for _, s in nodes]
+        scatter = ax.scatter(xs, Ss, c=Ss, cmap="viridis", s=25, zorder=3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label("Sous-jacent S")
+
+        # Annotations optionnelles
+        if annotate:
+            for x, s in nodes:
+                ax.text(x, s + (0.01 * self.market.S0), f"{s:.2f}", ha="center", va="bottom", fontsize=7)
+
+        # Ligne verticale pour la date de dividende
+        if option.isDiv and option.date_div is not None:
+            d0 = option.calc_date
+            T = d0 + relativedelta(years=option.mat)
+            num = max(0, (option.date_div - d0).days)
+            den = max(1, (T - d0).days)
+            index = num / den
+
+            div_step = None
+            for i in range(1, self.N + 1):
+                if index > i / self.N and index <= (i + 1) / self.N:
+                    div_step = i
+                    break
+
+            if div_step is not None and div_step <= max_cols:
+                ax.axvline(div_step, linestyle="--", alpha=0.8, color="red", linewidth=1.2)
                 ax.text(
-                    x,
-                    y,
-                    label,
-                    ha="center",
-                    va="center",
-                    fontsize=8,
-                    bbox=dict(facecolor="#90EE90" if show_option_values else "#ADD8E6", boxstyle="round,pad=0.3"),
+                    div_step + 0.2,
+                    max(Ss),
+                    f" Dividende = {option.div} ",
+                    color="red",
+                    fontsize=9,
+                    va="top",
+                    ha="left",
+                    bbox=dict(facecolor="white", alpha=0.6, edgecolor="none"),
                 )
 
-        # Tracer les liens entre les niveaux
-        for niveau, noeuds in niveaux.items():
-            if niveau + 1 not in niveaux:
-                continue
-            next_nodes = niveaux[niveau + 1]
-            for i, node in enumerate(noeuds):
-                children = [node.Ndown, node.Nmid, node.Nup]
-                for child in children:
-                    if child in next_nodes:
-                        x_parent = i
-                        y_parent = -niveau
-                        x_child = next_nodes.index(child)
-                        y_child = -(niveau + 1)
-                        ax.plot(
-                            [x_parent, x_child],
-                            [y_parent, y_child],
-                            color="gray",
-                            linewidth=0.8,
-                            alpha=0.6,
-                        )
-
+        # Axes et titres
+        ax.set_xlabel("Colonne (timestep)")
+        ax.set_ylabel("Sous-jacent S")
+        ax.set_title("Arbre Trinomial (valeurs réelles du sous-jacent)", fontsize=13)
+        ax.grid(True, linestyle="--", alpha=0.3)
+        ax.set_xlim(-0.3, min(max_cols + 0.3, self.N + 0.3))
         plt.tight_layout()
-        return fig
+
+        if show:
+            plt.show()
+        else:
+            return fig
 
 
     # def vega(self, option, hVol=1e-2):
