@@ -7,22 +7,6 @@ class OptionPricingParam:
         self.option = option
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     """
     Conteneur minimal pour tout ce dont on a besoin pour pricer :
     - market (S0, r, sigma)

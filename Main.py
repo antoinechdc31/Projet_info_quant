@@ -10,7 +10,10 @@ import numpy as np
 from dateutil.relativedelta import relativedelta
 from OneDimDerivative import OneDimDerivative
 from OptionPricingParam import OptionPricingParam
-from Greek import _PriceTreeBackward_S0
+from Greek import  OptionDeltaTreeRecurs, OptionGammaTreeRecurs, OptionVegaTreeRecurs,OptionVommaTreeRecurs
+
+
+
 def test_node_prices():
     market = Market(S0=100, r=0.03, sigma=0.2)
     tree = Tree(market, N = 1, delta_t= 1) 
@@ -166,20 +169,30 @@ def convergence_recursive():
     plt.show()
 
 def compare_tree_bs_vs_strike():
-    Ks = np.linspace(89, 109, 100)  # strikes testés
-    prix_tree = []
-    prix_bs = []
-    diffs = []
+    # --- Paramètres de base ---
+    Ks = np.linspace(69, 109, 89)  # strikes testés
+    prix_tree, prix_bs, diffs = [], [], []
 
+    # Paramètres du marché
     market = Market(S0=100, r=0.03, sigma=0.2)
-    option_template = {"mat":1, "opt_type":"call", "style":"european"}
+    maturity = 1.0  # 1 an
+    N = 400
+    dt = maturity / N
 
+    # Template option
+    option_template = {"mat": maturity, "opt_type": "call", "style": "european"}
+
+    # --- Calcul des prix ---
     for K in Ks:
-        tree = Tree(market, N=400, delta_t=1/400)
+        tree = Tree(market, N=N, delta_t=dt)
         option = Option(K=K, **option_template)
 
-        p_tree = tree.price_option_recursive(option)
-        p_bs = black_scholes(S0=100, K=K, T=1, r=0.03, sigma=0.2, type="call")
+        # Prix arbre trinomial
+        p_tree = tree.price_node_backward(option)
+
+        # Prix Black–Scholes
+        p_bs = black_scholes(S0=market.S0, K=K, T=maturity, r=market.r, sigma=market.sigma, type="call")
+
         prix_tree.append(p_tree)
         prix_bs.append(p_bs)
         diffs.append(p_tree - p_bs)
@@ -188,171 +201,201 @@ def compare_tree_bs_vs_strike():
     prix_bs = np.array(prix_bs)
     diffs = np.array(diffs)
 
-    # Approximation de la pente (dérivée ≈ delta numérique)
+    # --- Pentes (approximations numériques de ∂Prix/∂K) ---
     slope_tree = np.gradient(prix_tree, Ks)
     slope_bs = np.gradient(prix_bs, Ks)
 
-    # --- Graphique 1 : prix + pentes ---
-    plt.figure(figsize=(9,6))
-    plt.plot(Ks, prix_tree, label="Trinomial (recursive)")
-    plt.plot(Ks, prix_bs, label="Black–Scholes")
-    plt.xlabel("Strike K")
-    plt.ylabel("Prix de l’option")
-    plt.title("Prix en fonction du strike")
-    plt.grid(True)
-    plt.legend()
+    # === GRAPHIQUE 1 : Prix et pentes ===
+    fig, ax1 = plt.subplots(figsize=(9,6))
+    ax1.set_title("Tree and Black–Scholes prices as functions of the strike")
+    ax1.set_xlabel("Strike K")
+    ax1.set_ylabel("Option Price")
 
-    # Ajouter les pentes sur le même graphe
-    plt.twinx()
-    plt.plot(Ks, slope_tree, color="blue", alpha=0.6, label="Pente Tree")
-    plt.plot(Ks, slope_bs, color="orange", alpha=0.6, label="Pente BS")
-    plt.ylabel("Pente (∂Prix/∂K)")
-    plt.legend(loc="lower right")
+    ax1.plot(Ks, prix_bs, color="green", lw=2, label="BS")
+    ax1.plot(Ks, prix_tree, color="gold", lw=2, label="Tree")
 
+    # Second axe : différence Tree - BS
+    # ax2 = ax1.twinx()
+    # ax2.plot(Ks, diffs, color="red", lw=2, label="Tree - BS ->")
+    # ax2.set_ylabel("Tree - BS")
+
+    # Ajouter les pentes
+    ax1.plot(Ks, slope_bs, "g--", label="Slope BS ->")
+    ax1.plot(Ks, slope_tree, "y--", label="Slope Tree ->")
+
+    # Grilles et légendes
+    ax1.grid(True, ls="--", alpha=0.6)
+    ax1.legend(loc="upper left")
+    #ax2.legend(loc="upper right")
+
+    plt.tight_layout()
     plt.show()
 
-    # --- Graphique 2 : différence ---
+    # === GRAPHIQUE 2 : Écart Tree - BS ===
     plt.figure(figsize=(8,5))
-    plt.plot(Ks, diffs, marker="o", label="Prix Tree - Prix BS")
-    plt.axhline(0, color="black", linestyle="--")
+    plt.plot(Ks, diffs, color="red", label="Tree - BS")
+    plt.axhline(0, color="black", ls="--", lw=1)
     plt.xlabel("Strike K")
     plt.ylabel("Écart de prix")
-    plt.title("Écart entre Trinomial récursif et Black–Scholes")
-    plt.grid(True)
+    plt.title("Écart entre le modèle Trinomial et Black–Scholes")
+    plt.grid(True, ls="--", alpha=0.6)
     plt.legend()
+    plt.tight_layout()
     plt.show()
 
 
 def test_avec_div2():
+    # --- Dates importantes ---
+    calc_date = datetime(2025, 9, 1)
+    maturity = datetime(2026, 9, 1)
+    date_div = datetime(2026, 4, 21)
+
+    # --- Discrétisation temporelle ---
+    n = 980
+    mat = (maturity - calc_date).days / 365  # maturité en années (≈ 1.00)
+    deltat = mat / n                         # pas de temps
+
     # --- Paramètres du marché ---
-    market = Market(S0=100, r=0.05, sigma=0.8)
-    tree = Tree(market, N=100, delta_t=1/100)
+    market = Market(S0=100, r=0.05, sigma=0.3)
+    tree = Tree(market, N=n, delta_t=deltat)
 
-    # --- Date du dividende ---
-    date_div = datetime(2025, 10, 26)
-
-    # --- Définition de l'option avec dividende ---
+    # --- Option avec dividende discret ---
     option = Option(
-        K=40,
-        mat=1,  # maturité 1 an
-        opt_type="put",
+        K=102,
+        mat=mat,     # ✅ utiliser la vraie maturité
+        opt_type="call",
         style="european",
         isDiv=True,
-        div = 0,       
-        date_div=date_div
+        div=0,
+        date_div=date_div,
+        calc_date=calc_date       # utile si ton modèle l’utilise
     )
-    start1 = time.time()
-    prix_euro = tree.price_option_recursive(option)
-    end1 = time.time()
 
-    start2 = time.time()
+    # --- Pricing ---
+    tree.tree_construction2(option)
+    prix_euro = tree.price_option_recursive(option)
     prix_back = tree.price_node_backward(option)
-    end2 = time.time()
-    
-    prix_bs = black_scholes(S0=100, K=60, T=1, r=0.01, sigma=0.3, type="call")
+    # tree.plot_tree(max_levels=40)
+    prix_bs = black_scholes(S0=100, K=102, T=mat, r=0.05, sigma=0.3, type="call")
 
     print("\n===== Test avec dividende discret =====")
+    print(f"Date de calcul : {calc_date.strftime('%Y-%m-%d')}")
     print(f"Date du dividende : {date_div.strftime('%Y-%m-%d')}")
+    print(f"Maturité : {maturity.strftime('%Y-%m-%d')} ({mat:.4f} an)")
     print("---------------------------------------")
-    print(f"Prix via arbre trinomial (avec div)   : {prix_euro:.6f}")
-    print("Prix back (avec div)   :" , prix_back)
-    print(f"Prix via Black-Scholes (sans div)     : {prix_bs:.6f}")
+    print(f"Prix via arbre trinomial (avec div) : {prix_euro:.6f}")
+    print(f"Prix backward (avec div)            : {prix_back:.6f}")
+    print(f"Prix Black-Scholes (sans div)       : {prix_bs:.6f}")
     print("---------------------------------------")
-    print("→ On devrait observer que le prix avec dividende est PLUS FAIBLE\n"
+    print("→ Le prix avec dividende doit être PLUS FAIBLE\n"
           "  car le sous-jacent chute à la date de versement du dividende.")
-       
-    dS = OneDimDerivative(_PriceTreeBackward_S0, OptionPricingParam(market, tree, option), shift=0.5)
-    print("Delta =", dS.first(market.S0))
-    print("Gamma =", dS.second(market.S0))
-    print("temps recursif = ",end1 - start1)
-    print("temps backward = ",end2 - start2)
+    
+    #dS = OneDimDerivative(_PriceTreeBackward_S0, OptionPricingParam(market, tree, option), shift=0.01*market.S0)
+    #dsigma = OneDimDerivative(_PriceTreeBackward_sigma, OptionPricingParam(market, tree, option), shift=0.01*market.sigma)
+    delta = OptionDeltaTreeRecurs(market,tree,option,0.01)
+    gamma = OptionGammaTreeRecurs(market,tree,option,0.01)
+    vega = OptionVegaTreeRecurs(market,tree,option,0.01)
+    vomma = OptionVommaTreeRecurs(market,tree,option,0.01)
+    
+    print(f"Vrai Delta = {delta}")
+    print(f"Vrai Gamma = {gamma}")
+    print(f"Vrai Vega = {vega}")
+    print(f"Vrai Vomma = {vomma}")
+    #print(f"Delta = {dS.first(market.S0):.6f}")
+    #print(f"Gamma = {dS.second(market.S0):.6f}")
+    #print(f"Vega  = {dsigma.first(market.sigma):.6f}")
+    #print(f"Vomma = {dsigma.second(market.sigma):.6f}")
 
 
-def plot_trinomial_tree(S0=100, r=0.03, sigma=0.2,N=40, delta_t=None,K=100, mat=1, opt_type="call", style="european",isDiv=False, div=0, date_div=None,max_cols=20, annotate=False):
-   
-    # — Préparation
-    if delta_t is None:
-        delta_t = 1 / N
+def plot_gamma_vs_shift():
+     # --- Dates importantes ---
+    calc_date = datetime(2025, 9, 1)
+    maturity = datetime(2026, 9, 1)
+    date_div = datetime(2026, 4, 21)
 
-    market = Market(S0=S0, r=r, sigma=sigma)
-    tree = Tree(market, N=N, delta_t=delta_t)
-    option = Option(K=K, mat=mat, opt_type=opt_type, style=style,
-                    isDiv=isDiv, div=div, date_div=date_div)
+    # --- Discrétisation temporelle ---
+    n = 600
+    mat = (maturity - calc_date).days / 365  # maturité en années (≈ 1.00)
+    deltat = mat / n                         # pas de temps
 
-    # — Construction de l'arbre (méthode brique)
-    tree.tree_construction2(option)
+    # --- Paramètres du marché ---
+    market = Market(S0=100, r=0.05, sigma=0.3)
+    tree = Tree(market, N=n, delta_t=deltat)
 
-    # — Parcours des nœuds (on ne suit QUE Nup/Nmid/Ndown pour éviter tout cycle vertical)
-    nodes = []      # (col, level, S, node_id)
-    segments = []   # ((x1,y1), (x2,y2))
-    visited = set()
+    # --- Option avec dividende discret ---
+    option = Option(
+        K=102,
+        mat=mat,     # ✅ utiliser la vraie maturité
+        opt_type="call",
+        style="european",
+        isDiv=True,
+        div=0,
+        date_div=date_div,
+        calc_date=calc_date       # utile si ton modèle l’utilise
+    )
+    shifts = np.logspace(-7, 1, 20)  # de 0.001 à 1
+    gammas = []
 
-    def walk(node, t=0):
-        if node is None or t > max_cols:
-            return
-        nid = id(node)
-        if (nid, t) in visited:
-            return
-        visited.add((nid, t))
+    for h in shifts:
+        g = tree.gamma(option,h)
+        gammas.append(g)
 
-        nodes.append((t, node.level, node.underlying, nid))
-
-        # enfants → colonne t+1
-        for child_name in ("Ndown", "Nmid", "Nup"):
-            child = getattr(node, child_name)
-            if child is not None:
-                segments.append(((t, node.level), (t + 1, child.level)))
-                walk(child, t + 1)
-
-    walk(tree.root, 0)
-
-    # — Plot
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    # arêtes
-    for (x1, y1), (x2, y2) in segments:
-        ax.plot([x1, x2], [y1, y2], linewidth=0.8, alpha=0.5)
-
-    # nœuds (colorés par S)
-    xs = [x for x, _, _, _ in nodes]
-    ys = [y for _, y, _, _ in nodes]
-    Ss = [s for _, _, s, _ in nodes]
-    sc = ax.scatter(xs, ys, c=Ss, cmap="viridis", s=18, zorder=3)
-    cbar = plt.colorbar(sc, ax=ax)
-    cbar.set_label("Sous-jacent S")
-
-    # annotations optionnelles
-    if annotate:
-        for x, y, s, _ in nodes:
-            ax.text(x, y + 0.08, f"{s:.1f}", ha="center", va="bottom", fontsize=7, alpha=0.8)
-
-    # ligne verticale à la date de dividende (si applicable)
-    if isDiv and date_div is not None:
-        d0 = datetime.now()
-        T  = d0 + relativedelta(years=mat)
-        num = max(0, (date_div - d0).days)
-        den = max(1, (T - d0).days)
-        index = num / den  # fraction de la maturité
-        # colonne à laquelle on applique le dividende dans tree_construction2
-        # (même logique que ton code : seuil dans (i/N, (i+1)/N])
-        div_step = None
-        for i in range(1, N + 1):
-            if index > i / N and index <= (i + 1) / N:
-                div_step = i
-                break
-        if div_step is not None and div_step <= max_cols:
-            ax.axvline(div_step, linestyle="--", alpha=0.6, color="red")
-            ax.text(div_step, ax.get_ylim()[1], f" div ({div}) ", color="red",
-                    va="top", ha="left", fontsize=8, bbox=dict(facecolor="white", alpha=0.6, edgecolor="none"))
-
-    ax.set_xlabel("Colonne (timestep)")
-    ax.set_ylabel("Niveau")
-    ax.set_title("Arbre trinomial (structure Nup/Nmid/Ndown)")
-    ax.grid(True, linestyle="--", alpha=0.3)
-    ax.set_xlim(-0.3, min(max_cols + 0.3, N + 0.3))
-    plt.tight_layout()
+    plt.figure(figsize=(8,5))
+    plt.plot(shifts, gammas, marker='o')
+    plt.xscale('log')
+    plt.title("Sensibilité du Gamma par rapport au shift h")
+    plt.xlabel("Shift (h)")
+    plt.ylabel("Gamma estimé")
+    plt.grid(True, which="both", ls="--")
     plt.show()
 
+def benchmark_recursive_vs_backward():
+    # --- Paramètres constants ---
+    S0, K, r, sigma = 100, 102, 0.05, 0.3
+    calc_date = datetime(2025, 9, 1)
+    maturity = datetime(2026, 9, 1)
+    mat = (maturity - calc_date).days / 365
+
+    market = Market(S0=S0, r=r, sigma=sigma)
+    option = Option(K=K, mat=mat, opt_type="call", style="european")
+
+    # --- Liste de valeurs de N ---
+    N_values = [10, 25, 50, 100, 200, 400,500,600,700,800,900,1000]
+    times_recursive = []
+    times_backward = []
+
+    for N in N_values:
+        delta_t = mat / N
+        tree = Tree(market, N=N, delta_t=delta_t)
+
+        # Test récursif
+        t1 = time.time()
+        tree = Tree(market, N=N, delta_t=delta_t)
+        tree.tree_construction2(option)
+        tree.price_option_recursive(option)
+        t2 = time.time()
+        times_recursive.append(t2 - t1)
+
+        # Test backward
+        t3 = time.time()
+        tree = Tree(market, N=N, delta_t=delta_t)
+        tree.tree_construction2(option)
+        tree.price_node_backward(option)
+        t4 = time.time()
+        times_backward.append(t4 - t3)
+
+        print(f"N={N:3d} → Recursive={times_recursive[-1]:.4f}s, Backward={times_backward[-1]:.4f}s")
+
+    # --- Plot ---
+    plt.figure(figsize=(8,5))
+    plt.plot(N_values, times_recursive, marker='o', label='Récursif')
+    plt.plot(N_values, times_backward, marker='s', label='Backward')
+    plt.xlabel("Nombre d’étapes N")
+    plt.ylabel("Temps de calcul (s)")
+    plt.title("Comparaison du temps de calcul : Recursive vs Backward")
+    plt.legend()
+    plt.grid(True, ls='--', alpha=0.6)
+    plt.show()
 
 if __name__ == "__main__":
     test_avec_div2() 
@@ -360,5 +403,13 @@ if __name__ == "__main__":
     #compare_tree_bs_vs_strike() #=> Comparaison des prix en fonction du strike
     #test_plot_tree()
     #plot_trinomial_tree(S0=100, r=0.1, sigma=0.2,N=60, delta_t=1/60,K=80, mat=1, opt_type="call", style="european",isDiv=True, div=6, date_div=datetime(2025, 12, 9),max_cols=100, annotate=False)
+    #plot_gamma_vs_shift()
+    #benchmark_recursive_vs_backward() => Comparaison des temps de calcul entre les deux méthodes
+
+
+
 #si on demande le vega on doit trouver la variation de prix pour 1%
 #sur le papier => regularite quand on bouge S0 => est ce que le gamma saute
+#question delta hedge 
+#savoir comment on se hedge avec le vega (nb d'action)
+#l'erreur sur le prix decroit en 1/pas de temps

@@ -5,12 +5,10 @@ from Option import Option
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import sys
-sys.setrecursionlimit(5000)  # limite de recursion car on avait un pb de dépassement de max depth
-from OneDimDerivative import OneDimDerivative
 import copy
-
-
-
+import matplotlib.pyplot as plt
+sys.setrecursionlimit(5000)  # limite de recursion car on avait un pb de dépassement de max depth
+ 
 class Tree : 
 
     def __init__(self, market: Market, N: int, delta_t):
@@ -48,7 +46,7 @@ class Tree :
             # current_node = node_trunc
             node_trunc.create_brick(True, direction = "up") # on crée la brick du tronc, la premiere brick de la colonne
             current_node = node_trunc.up # puis on prend son noeud "superieur" up, celui au dessus de lui dans la colonne
-            # c'est à dire :
+            # c'est à dire :    
             #           Node up
             #             |     Nup create avec create_bric du tronc
             #             |   /
@@ -78,7 +76,7 @@ class Tree :
         index = -1
 
         if option.isDiv:
-            d0 = datetime.now()
+            d0 = option.calc_date
             T = d0 + relativedelta(years=option.mat)
             num = max(0, (option.date_div - d0).days)
             den = max(1, (T - d0).days)
@@ -95,13 +93,13 @@ class Tree :
                 if index > i / self.N and index <= (i + 1) / self.N:
                     is_div_date = True
                     div_already_applied = True  # ⚡ le dividende ne sera plus appliqué ensuite
-                   # print(f"→ Dividende appliqué au pas {i}/{self.N} ({index:.4f})")
-            
+                    #print(f"→ Dividende appliqué au pas {i}/{self.N} ({index:.4f})")
+            #print(i)
             node_trunc = self.build_columns(node_trunc, is_div_date, option)
 
     def price_option_recursive(self, option):
 
-        self.tree_construction2(option) # créaction de l'arbre
+        # self.tree_construction2(option) # créaction de l'arbre
         # memo = {} # valeur des feuilles deja calculée pour eviter le calcul plusieurs fois
         return self.price_node2(self.root ,option) # appel de la fct recursive
 
@@ -123,7 +121,6 @@ class Tree :
                 node.Nmid.option_value = Vmid
 
             if node.Nup.option_value is not None :
-                #print("ici")
                 Vup = node.Nup.option_value
             else :
                 Vup  = self.price_node2(node.Nup, option)
@@ -136,7 +133,7 @@ class Tree :
                 node.Ndown.option_value = Vdown
 
             # application de la formule
-            p_mid, p_up, p_down = node.calcul_proba(node.div)
+            p_mid, p_up, p_down = node.calcul_proba()
             df = math.exp(-self.market.r * self.dt)
             moy_pond = df * (p_mid * Vmid + p_up * Vup + p_down * Vdown)
 
@@ -198,26 +195,269 @@ class Tree :
         # le prix de l’option = valeur de la racine
         return self.root.option_value
 
-    def pricing_noeud_indiv(self, option, current):
+    def pricing_noeud_indiv(self, option , current): # fonction generale pour pricer un noeud (pas feuille)
+
         Vmid  = current.Nmid.option_value  if current.Nmid  else 0.0
         Vup   = current.Nup.option_value   if current.Nup   else 0.0
         Vdown = current.Ndown.option_value if current.Ndown else 0.0
 
-        p_mid, p_up, p_down = current.calcul_proba(current.div)
-        # renormalisation
-        s = p_mid + p_up + p_down
-        if s > 0:
-            p_mid, p_up, p_down = p_mid/s, p_up/s, p_down/s
-
-        num, den = 0.0, 0.0
-        if current.Nmid:  num += p_mid  * Vmid;  den += p_mid
-        if current.Nup:   num += p_up   * Vup;   den += p_up
-        if current.Ndown: num += p_down * Vdown; den += p_down
-
+        p_mid, p_up, p_down = current.calcul_proba()
         df = math.exp(-self.market.r * self.dt)
-        cont = df * (num / den if den > 0 else 0.0)
+        moy_pond = df * (p_mid * Vmid + p_up * Vup + p_down * Vdown)
 
-        return max(option.payoff(current.underlying), cont) if option.style.lower() == "american" else cont
+        if option.style.lower() == "american":
+            val = max(option.payoff(current.underlying), moy_pond)
+        else:
+            val = moy_pond
+
+        return val
+
+    def delta(self,option, h=1e-2):
+
+        S0 = self.market.S0
+        h = h * S0 # 1% du prix
+        market_up = Market(S0 + h, self.market.r, self.market.sigma)
+        market_down = Market(S0 - h, self.market.r, self.market.sigma)
+
+        # Reconstruit les arbres complets
+        tree_up = Tree(market_up, self.N, self.dt)
+        tree_up.tree_construction2(option)
+        tree_down = Tree(market_down, self.N, self.dt)
+        tree_down.tree_construction2(option)
+
+        price_up = tree_up.price_option_recursive(option)
+        price_down = tree_down.price_option_recursive(option)
+
+        delta = (price_up - price_down) / (2 * h)
+        print(f"Δ (Delta) = {delta:.6f}")
+        return delta
+
+    # def gamma(self, option, h=1e-2):
+
+    #     S0 = self.market.S0
+    #     h = h * S0
+    #     market_up = Market(S0 + h, self.market.r, self.market.sigma)
+    #     market_down = Market(S0 - h, self.market.r, self.market.sigma)
+    #     tree_up = Tree(market_up, self.N, self.dt)
+    #     # tree_up.tree_construction2()
+    #     tree_down = Tree(market_down, self.N, self.dt)
+
+    #     price_up = tree_up.price_option_recursive(option)
+    #     price_down = tree_down.price_option_recursive(option)
+    #     price_0 = self.price_option_recursive(option)
+
+    #     gamma = (price_up - 2 * price_0 + price_down) / ((h)**2) # formule du cours
+    #     print(f"Γ (Gamma) = {gamma:.6f}")
+    #     return gamma
+
+    def gamma(self, option, h=1e-2):
+
+        S0 = self.market.S0
+        h = h * S0  # 1% du prix
+        r = self.market.r
+        sigma = self.market.sigma
+
+        # 3 marchés indépendants
+        market_up = Market(S0 + h, r, sigma)
+        market_down = Market(S0 - h, r, sigma)
+        market_0 = Market(S0, r, sigma)
+
+        # 3 arbres indépendants
+        tree_up = Tree(market_up, self.N, self.dt)
+        tree_down = Tree(market_down, self.N, self.dt)
+        tree_0 = Tree(market_0, self.N, self.dt)
+
+        tree_up.tree_construction2(option)
+        tree_down.tree_construction2(option)
+        tree_0.tree_construction2(option)
+        # Prix sur chaque arbre
+        price_up = tree_up.price_option_recursive(option)
+        price_down = tree_down.price_option_recursive(option)
+        price_0 = tree_0.price_option_recursive(option)
+
+        # Gamma par différences centrées
+        gamma = (price_up - 2 * price_0 + price_down) / (h ** 2)
+        print(f"Γ (Gamma) = {gamma:.6f}")
+        return gamma
+
+    def vega(self, option, hVol=0.01):
+        """
+        Calcule le Vega : sensibilité du prix à la volatilité.
+        hVol = variation relative (ex: 0.01 = 1%)
+        """
+
+        sigma = self.market.sigma
+        r = self.market.r
+        S0 = self.market.S0
+
+        # Marchés indépendants
+        market_up = Market(S0, r, sigma * (1 + hVol))
+        market_down = Market(S0, r, sigma * (1 - hVol))
+
+        # Arbres indépendants
+        tree_up = Tree(market_up, self.N, self.dt)
+        tree_down = Tree(market_down, self.N, self.dt)
+        
+        tree_up.tree_construction2(option)
+        tree_down.tree_construction2(option)
+        # Calcul des prix
+        price_up = tree_up.price_option_recursive(option)
+        price_down = tree_down.price_option_recursive(option)
+
+        # Différence centrée
+        vega = (price_up - price_down) / (2 * sigma * hVol)
+        print(f"Vega = {vega:.6f}")
+        return vega
+
+
+    def volga(self, option, hVol=0.05):
+        """
+        Calcule la Volga (Vomma) : courbure du prix par rapport à la volatilité.
+        """
+
+        sigma = self.market.sigma
+        r = self.market.r
+        S0 = self.market.S0
+
+        # Marchés indépendants
+        market_up = Market(S0, r, sigma * (1 + hVol))
+        market_down = Market(S0, r, sigma * (1 - hVol))
+        market_0 = Market(S0, r, sigma)
+
+        # Arbres indépendants
+        tree_up = Tree(market_up, self.N, self.dt)
+        tree_down = Tree(market_down, self.N, self.dt)
+        tree_0 = Tree(market_0, self.N, self.dt)
+
+        tree_up.tree_construction2(option)
+        tree_down.tree_construction2(option)
+        tree_0.tree_construction2(option)
+        
+        # Calcul des prix
+        price_up = tree_up.price_option_recursive(option)
+        price_down = tree_down.price_option_recursive(option)
+        price_0 = tree_0.price_option_recursive(option)
+
+        # Différence centrée seconde
+        volga = (price_up - 2 * price_0 + price_down) / ((sigma * hVol) ** 2)
+        print(f"Volga (Vomma) = {volga:.6f}")
+        return volga
+
+    def plot_tree(self, option=None, show_option_values=False, max_depth=10):
+        """
+        Affiche l’arbre trinomial avec Matplotlib uniquement.
+        - option : objet Option pour récupérer les valeurs d’option
+        - show_option_values : booléen pour afficher la valeur d’option au lieu du sous-jacent
+        - max_depth : limite du nombre de colonnes affichées
+        """
+        # Construit l’arbre
+        self.tree_construction2(option)
+
+        fig, ax = plt.subplots(figsize=(14, 8))
+        ax.set_title(f"🌲 Arbre Trinomial ({'Valeurs option' if show_option_values else 'Sous-jacents'})", fontsize=14)
+        ax.axis("off")
+
+        # Dictionnaire pour stocker les nœuds par niveau
+        niveaux = {}
+        queue = [(self.root, 0)]  # (node, niveau)
+
+        while queue:
+            node, niveau = queue.pop(0)
+            if niveau > max_depth:
+                continue
+            if niveau not in niveaux:
+                niveaux[niveau] = []
+            niveaux[niveau].append(node)
+
+            # Enfants
+            for child in [node.Ndown, node.Nmid, node.Nup]:
+                if child is not None:
+                    queue.append((child, niveau + 1))
+
+        # Calcul des positions horizontales
+        y_offset = 0
+        for niveau, noeuds in niveaux.items():
+            x_positions = list(range(len(noeuds)))
+            for x, node in zip(x_positions, noeuds):
+                y = -niveau
+                label = (
+                    f"{node.option_value:.2f}"
+                    if show_option_values and node.option_value is not None
+                    else f"{node.underlying:.2f}"
+                )
+
+                ax.text(
+                    x,
+                    y,
+                    label,
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    bbox=dict(facecolor="#90EE90" if show_option_values else "#ADD8E6", boxstyle="round,pad=0.3"),
+                )
+
+        # Tracer les liens entre les niveaux
+        for niveau, noeuds in niveaux.items():
+            if niveau + 1 not in niveaux:
+                continue
+            next_nodes = niveaux[niveau + 1]
+            for i, node in enumerate(noeuds):
+                children = [node.Ndown, node.Nmid, node.Nup]
+                for child in children:
+                    if child in next_nodes:
+                        x_parent = i
+                        y_parent = -niveau
+                        x_child = next_nodes.index(child)
+                        y_child = -(niveau + 1)
+                        ax.plot(
+                            [x_parent, x_child],
+                            [y_parent, y_child],
+                            color="gray",
+                            linewidth=0.8,
+                            alpha=0.6,
+                        )
+
+        plt.tight_layout()
+        return fig
+
+
+    # def vega(self, option, hVol=1e-2):
+
+    #     sigma = self.market.sigma
+    #     tree_up = Tree(self.market, self.N, self.dt)
+    #     tree_down = Tree(self.market, self.N, self.dt)
+
+    #     tree_up.market.sigma = sigma * (1 + hVol)
+    #     tree_down.market.sigma = sigma * (1 - hVol)
+
+    #     price_up = tree_up.price_option_recursive(option)
+    #     price_down = tree_down.price_option_recursive(option)
+
+    #     vega = (price_up - price_down) / (2 * sigma * hVol)
+    #     print(f"Vega = {vega:.6f}")
+    #     return vega
+
+    # def volga(self, option, hVol=1e-2):
+
+    #     sigma = self.market.sigma
+
+    #     # Copies indépendantes de l’arbre
+    #     tree_up = Tree(self.market, self.N, self.dt)
+    #     tree_down = Tree(self.market, self.N, self.dt)
+
+    #     tree_up.market.sigma = sigma * (1 + hVol)
+    #     tree_down.market.sigma = sigma * (1 - hVol)
+
+    #     # Calcul des prix pour sigma+h, sigma, sigma−h
+    #     price_up = tree_up.price_option_recursive(option)
+    #     price_down = tree_down.price_option_recursive(option)
+    #     price_0 = self.price_option_recursive(option)
+
+    #     # Formule des différences centrées secondes
+    #     Volga = (price_up - 2 * price_0 + price_down) / ((sigma * hVol) ** 2)
+
+    #     print(f"Volga (Vomma) = {Volga:.6f}")
+    #     return Volga
 
 
 ################# METHODE SANS BRIQUE ###################
@@ -283,3 +523,5 @@ class Tree :
             # print(list_payoff)
 
         return list_payoff[0] # a la fin on a la derniere valeur
+
+ 

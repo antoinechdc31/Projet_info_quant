@@ -12,4 +12,3 @@ class OneDimDerivative :
     def second(self, x: float) -> float:
         return (self.f(self.param, x + self.shift) - 2*self.f(self.param, x) + self.f(self.param, x - self.shift)) / (self.shift ** 2)
     
-    
