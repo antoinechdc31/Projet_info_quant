@@ -8,7 +8,12 @@ import pandas as pd
 from BlackScholes import black_scholes
 import time
 from BlackScholes import black_scholes_greeks
-
+from Greek import (
+    OptionDeltaTreeRecurs,
+    OptionGammaTreeRecurs,
+    OptionVegaTreeRecurs,
+    OptionVommaTreeRecurs,
+)
 # ============ PAGE CONFIG ============
 st.set_page_config(page_title="Arbre Trinomial avec prunning", layout="wide")
 
@@ -27,7 +32,7 @@ with st.expander("Paramètres du modèle", expanded=True):
     col5, col6, col7 = st.columns(3)
     opt_type = col5.selectbox("Type d’option", ["call", "put"])
     style = col6.selectbox("Style d’exercice", ["european", "american"])
-    N = int(col7.number_input("Nombre d’étapes N", min_value=10, max_value=1000, value=200, step=10))
+    N = int(col7.number_input("Nombre d’étapes N", min_value=10, max_value=10000, value=200, step=10))
 
     col8, col9 = st.columns(2)
     calc_date = col8.date_input("Date de calcul", datetime.today())
@@ -83,6 +88,12 @@ with tab1:
         gamma = tree.gamma(option)
         vega = tree.vega(option)
         volga = tree.volga(option)
+                
+        delta_rec = OptionDeltaTreeRecurs(market, tree, option, 0.01)
+        gamma_rec = OptionGammaTreeRecurs(market, tree, option, 0.01)
+        vega_rec = OptionVegaTreeRecurs(market, tree, option, 0.01)
+        volga_rec = OptionVommaTreeRecurs(market, tree, option, 0.01)
+
 
         st.subheader("Sensibilités (Grecques)")
         c1, c2, c3, c4 = st.columns(4)
@@ -96,6 +107,7 @@ with tab1:
         greeks_data = {
             "Grecque": ["Delta (Δ)", "Gamma (Γ)", "Vega", "Volga (Vomma)"],
             "Trinomial": [delta, gamma, vega, volga],
+            "Greek.py (numérique)": [delta_rec, gamma_rec, vega_rec, volga_rec],
             "Black-Scholes": [delta_bs, gamma_bs, vega_bs, volga_bs],
             "Écart relatif (%)": [
                 100 * abs((delta - delta_bs) / delta_bs) if delta_bs != 0 else 0,
@@ -109,6 +121,7 @@ with tab1:
         st.markdown("### Comparaison des Grecques — Trinomial vs Black-Scholes")
         st.dataframe(df_greeks.style.format({
             "Trinomial": "{:.6f}",
+            "Greek.py (numérique)": "{:.6f}",
             "Black-Scholes": "{:.6f}",
             "Écart relatif (%)": "{:.2f}"
         }), use_container_width=True)

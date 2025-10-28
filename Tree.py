@@ -5,6 +5,7 @@ from Option import Option
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import sys
+from datetime import timedelta
 import copy
 import matplotlib.pyplot as plt
 sys.setrecursionlimit(5000)  # limite de recursion car on avait un pb de dépassement de max depth
@@ -77,7 +78,8 @@ class Tree :
 
         if option.isDiv:
             d0 = option.calc_date
-            T = d0 + relativedelta(years=option.mat)
+            # T = d0 + relativedelta(years=option.mat)
+            T = d0 + timedelta(days=option.mat * 365)
             num = max(0, (option.date_div - d0).days)
             den = max(1, (T - d0).days)
             index = num / den
