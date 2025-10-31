@@ -8,16 +8,21 @@ import pandas as pd
 from BlackScholes import black_scholes
 import time
 from BlackScholes import black_scholes_greeks
-
+from Greek import (
+    OptionDeltaTreeRecurs,
+    OptionGammaTreeRecurs,
+    OptionVegaTreeRecurs,
+    OptionVommaTreeRecurs,
+)
 # ============ PAGE CONFIG ============
-st.set_page_config(page_title="🌲 Arbre Trinomial avec prunning", layout="wide")
+st.set_page_config(page_title="Arbre Trinomial avec prunning", layout="wide")
 
 # ============ TITRE GLOBAL ============
-st.title("🌳 Pricing d’Options avec prunning !!! ")
-st.caption("Interface à onglets — claire, moderne et structurée 🧭")
+st.title("Pricing d’Options avec prunning !!! ")
+st.caption("Antoine CHANDECLERC et Lou GIRAULT")
 
 # ============ PARAMÈTRES COMMUNS ============
-with st.expander("⚙️ Paramètres du modèle", expanded=True):
+with st.expander("Paramètres du modèle", expanded=True):
     col1, col2, col3, col4 = st.columns(4)
     S0 = col1.number_input("Prix initial S₀", value=100.0, step=1.0)
     K = col2.number_input("Strike K", value=100.0, step=1.0)
@@ -27,7 +32,7 @@ with st.expander("⚙️ Paramètres du modèle", expanded=True):
     col5, col6, col7 = st.columns(3)
     opt_type = col5.selectbox("Type d’option", ["call", "put"])
     style = col6.selectbox("Style d’exercice", ["european", "american"])
-    N = int(col7.number_input("Nombre d’étapes N", min_value=10, max_value=1000, value=200, step=10))
+    N = int(col7.number_input("Nombre d’étapes N", min_value=10, max_value=10000, value=200, step=10))
 
     col8, col9 = st.columns(2)
     calc_date = col8.date_input("Date de calcul", datetime.today())
@@ -37,7 +42,7 @@ with st.expander("⚙️ Paramètres du modèle", expanded=True):
     mat = (maturity - calc_date).days / 365
     delta_t = mat / N
 
-    st.markdown("### 💰 Dividende")
+    st.markdown("### Dividende")
     has_div = st.checkbox("Inclure un dividende discret ?")
     if has_div:
         col1, col2 = st.columns(2)
@@ -51,14 +56,14 @@ with st.expander("⚙️ Paramètres du modèle", expanded=True):
         div, date_div = 0, None
 
 # ============ ONGLETS ============
-tab1, tab2, tab3, tab4 = st.tabs(["💸 Pricing", "🌲 Tree", "📈 Convergence", "⚙️ Runtime"])
+tab1, tab2 = st.tabs(["Pricing", "Tree"])
 
 # -------------------------------
 # 💸 Onglet 1 : Pricing
 # -------------------------------
 with tab1:
-    st.header("💰 Pricing et Grecques")
-    if st.button("🚀 Lancer le calcul du prix"):
+    st.header("Pricing et Grecques")
+    if st.button("Lancer le calcul du prix"):
         with st.spinner("Construction de l’arbre et calcul..."):
             t0 = time.time()
             market = Market(S0=S0, r=r, sigma=sigma)
@@ -72,7 +77,7 @@ with tab1:
             runtime = time.time() - t0
 
         st.success(f"**Prix Trinomial :** {prix_tri:.6f}")
-        st.write(f"⏱ Temps de calcul : {runtime:.3f} s")
+        st.write(f"Temps de calcul : {runtime:.3f} s")
 
         col1, col2, col3 = st.columns(3)
         col1.metric("Prix Trinomial", f"{prix_tri:.4f}")
@@ -83,8 +88,14 @@ with tab1:
         gamma = tree.gamma(option)
         vega = tree.vega(option)
         volga = tree.volga(option)
+                
+        delta_rec = OptionDeltaTreeRecurs(market, tree, option, 0.01)
+        gamma_rec = OptionGammaTreeRecurs(market, tree, option, 0.01)
+        vega_rec = OptionVegaTreeRecurs(market, tree, option, 0.01)
+        volga_rec = OptionVommaTreeRecurs(market, tree, option, 0.01)
 
-        st.subheader("📈 Sensibilités (Grecques)")
+
+        st.subheader("Sensibilités (Grecques)")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Δ Delta", f"{delta:.4f}")
         c2.metric("Γ Gamma", f"{gamma:.4f}")
@@ -96,6 +107,7 @@ with tab1:
         greeks_data = {
             "Grecque": ["Delta (Δ)", "Gamma (Γ)", "Vega", "Volga (Vomma)"],
             "Trinomial": [delta, gamma, vega, volga],
+            "Greek.py (numérique)": [delta_rec, gamma_rec, vega_rec, volga_rec],
             "Black-Scholes": [delta_bs, gamma_bs, vega_bs, volga_bs],
             "Écart relatif (%)": [
                 100 * abs((delta - delta_bs) / delta_bs) if delta_bs != 0 else 0,
@@ -106,9 +118,10 @@ with tab1:
         }
 
         df_greeks = pd.DataFrame(greeks_data)
-        st.markdown("### ⚖️ Comparaison des Grecques — Trinomial vs Black-Scholes")
+        st.markdown("### Comparaison des Grecques — Trinomial vs Black-Scholes")
         st.dataframe(df_greeks.style.format({
             "Trinomial": "{:.6f}",
+            "Greek.py (numérique)": "{:.6f}",
             "Black-Scholes": "{:.6f}",
             "Écart relatif (%)": "{:.2f}"
         }), use_container_width=True)
@@ -116,67 +129,54 @@ with tab1:
 # -------------------------------
 # 🌲 Onglet 2 : Visualisation de l’Arbre
 # -------------------------------
+# 🌲 Onglet : Arbre Trinomial graphique
 with tab2:
-    st.header("🌲 Visualisation de l’Arbre Trinomial")
-    show_values = st.toggle("Afficher les valeurs d’option au lieu des sous-jacents", value=False)
-    max_depth = min(N, 40)
-    if st.button("👁️ Afficher l’arbre (max 40 étapes)"):
-        market = Market(S0=S0, r=r, sigma=sigma)
-        tree = Tree(market, N=N, delta_t=delta_t)
-        option = Option(K=K, mat=mat, opt_type=opt_type, style=style,
-                        isDiv=has_div, div=div, date_div=date_div, calc_date=calc_date)
-        tree.price_option_recursive(option)
-        tree.plot_tree(option=option, show_option_values=show_values, max_depth=max_depth)
-        st.pyplot(plt)
+    st.header("Visualisation graphique de l'arbre trinomial")
 
-    st.markdown("#### 🎲 Probabilités locales (racine)")
-    try:
-        tree = Tree(Market(S0, r, sigma), N, delta_t)
-        option = Option(K, mat, opt_type, style, has_div, div, date_div, calc_date)
-        root = tree.root
-        p_mid, p_up, p_down = root.calcul_proba()
-        st.write(f"Pmid = {p_mid:.4f}, Pup = {p_up:.4f}, Pdown = {p_down:.4f}")
-    except Exception:
-        st.info("Probabilités non disponibles avant construction complète.")
+    max_cols = st.slider("Profondeur maximale à afficher :", 5, min(N, 40), 15)
+    annotate = st.toggle("Afficher les valeurs des sous-jacents sur les nœuds", value=False)
 
-# -------------------------------
-# 📈 Onglet 3 : Convergence
-# -------------------------------
-with tab3:
-    st.header("📈 Étude de convergence du modèle")
-    st.write("On observe comment le prix se stabilise quand N augmente.")
-    Ns = [10, 25, 50, 100, 200, 400]
-    prices = []
-    for n in Ns:
-        tree = Tree(Market(S0, r, sigma), n, mat/n)
-        option = Option(K, mat, opt_type, style, has_div, div, date_div, calc_date)
-        prices.append(tree.price_option_recursive(option))
-    fig, ax = plt.subplots()
-    ax.plot(Ns, prices, marker="o")
-    ax.set_xlabel("Nombre d’étapes N")
-    ax.set_ylabel("Prix de l’option")
-    ax.set_title("Convergence du prix avec N")
-    st.pyplot(fig)
+    if st.button("Générer l'arbre graphique"):
+        with st.spinner("Construction et affichage de l’arbre..."):
+            market = Market(S0=S0, r=r, sigma=sigma)
+            option = Option(K=K, mat=mat, opt_type=opt_type, style=style,
+                            isDiv=has_div, div=div, date_div=date_div, calc_date=calc_date)
+            tree = Tree(market, N=N, delta_t=delta_t)
+            fig = tree.plot_trinomial_tree(option=option, max_cols=max_cols, annotate=annotate, show=False)
+            st.pyplot(fig)
 
-# -------------------------------
-# ⚙️ Onglet 4 : Runtime
-# -------------------------------
-with tab4:
-    st.header("⚙️ Temps d’exécution selon N")
-    st.write("Évalue la complexité du modèle en fonction du nombre d’étapes.")
-    Ns = [10, 50, 100, 200, 400]
-    times = []
-    for n in Ns:
-        t0 = time.time()
-        tree = Tree(Market(S0, r, sigma), n, mat/n)
-        option = Option(K, mat, opt_type, style, has_div, div, date_div, calc_date)
-        tree.price_option_recursive(option)
-        times.append(time.time() - t0)
-    fig, ax = plt.subplots()
-    ax.plot(Ns, times, marker="o", color="crimson")
-    ax.set_xlabel("Nombre d’étapes N")
-    ax.set_ylabel("Temps (s)")
-    ax.set_title("Runtime vs N")
-    st.pyplot(fig)
+        # | Position       | Signe du Δ (option seule) | Effet sur ton portefeuille                                                    | Action pour neutraliser   |
+        # | -------------- | ------------------------- | ----------------------------------------------------------------------------- | ------------------------- |
+        # | **Long Call**  | +Δ (positif)              | Portefeuille devient **positif en delta** (bénéficie si le sous-jacent monte) | ➜ **Vendre des actions**  |
+        # | **Short Call** | −Δ (négatif)              | Portefeuille devient **négatif en delta** (perd si le sous-jacent monte)      | ➜ **Acheter des actions** |
+        # | **Long Put**   | −Δ (négatif)              | Portefeuille devient **négatif en delta**                                     | ➜ **Acheter des actions** |
+        # | **Short Put**  | +Δ (positif)              | Portefeuille devient **positif en delta**                                     | ➜ **Vendre des actions**  |
 
-    #dire tout ce qu'on a fait dans les 2 langages (surtout exntension ) + resultat => convergence...
+
+        #  Règle de couverture Vega
+        #
+        # | Position       | Signe du Vega (option seule) | Effet sur ton portefeuille                                                | Action pour neutraliser   |
+        # | -------------- | ---------------------------- | ------------------------------------------------------------------------- | ------------------------- |
+        # | **Long Call**  | +Vega (positif)              | Portefeuille devient **positif en Vega** (gagne si la volatilité monte)   | ➜ **Vendre des options**  |
+        # | **Short Call** | −Vega (négatif)              | Portefeuille devient **négatif en Vega** (perd si la volatilité monte)    | ➜ **Acheter des options** |
+        # | **Long Put**   | +Vega (positif)              | Portefeuille devient **positif en Vega**                                  | ➜ **Vendre des options**  |
+        # | **Short Put**  | −Vega (négatif)              | Portefeuille devient **négatif en Vega**                                  | ➜ **Acheter des options** |
+        #
+        # sans pruning O(n^2) avec prunning O(n)
+
+        # Si le vega = 0.2, cela veut dire que si la volatilité implicite augmente de 1 %, le prix de l’option augmente d’environ 0.2 €.
+        #Convergence du binomial de 1/sqrt(N) vers bs
+
+        #A-A-B- B-A-A-A-A-A-A-A-C-A-A-A-A-A-B
+        #B-A-B-A-B-B-C-B-B-A-A-B-B-A-A-A-A-A-A-A-
+
+
+        # Price de l'action = 102,45 €
+        # Volatilité = 28%
+        # Dividende = 3,00 €
+        # Date ex-div = 9 juin 2026
+        # Taux d'intérêt = 4%
+        # Options :
+        # La date de maturité est le 27 aout 2026
+        # Les autres caractéristiques sont définies dans chaque question
+        # La date de valorisation est le 29 octobre 2025

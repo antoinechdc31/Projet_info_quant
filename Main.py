@@ -3,10 +3,10 @@ from Tree import Tree
 from Node import Node
 from BlackScholes import black_scholes
 from Option import Option
-import time
+import time  
 from datetime import datetime
 import matplotlib.pyplot as plt
-import numpy as np
+import numpy as np 
 from dateutil.relativedelta import relativedelta
 from OneDimDerivative import OneDimDerivative
 from OptionPricingParam import OptionPricingParam
@@ -169,80 +169,52 @@ def convergence_recursive():
     plt.show()
 
 def compare_tree_bs_vs_strike():
-    # --- Paramètres de base ---
-    Ks = np.linspace(69, 109, 89)  # strikes testés
-    prix_tree, prix_bs, diffs = [], [], []
+    Ks = np.linspace(69, 109, 89)
+    prix_tree, prix_bs = [], []
 
-    # Paramètres du marché
     market = Market(S0=100, r=0.03, sigma=0.2)
-    maturity = 1.0  # 1 an
-    N = 400
+    maturity = 1.0
+    N = 10     # IMPORTANT : pas trop grand sinon l’arbre lisse (pruning)
     dt = maturity / N
 
-    # Template option
     option_template = {"mat": maturity, "opt_type": "call", "style": "european"}
 
-    # --- Calcul des prix ---
     for K in Ks:
-        tree = Tree(market, N=N, delta_t=dt)
         option = Option(K=K, **option_template)
+        tree = Tree(market, N=N, delta_t=dt)
+        tree.tree_construction2(option)
+        p_tree = tree.price_option_recursive(option)
 
-        # Prix arbre trinomial
-        p_tree = tree.price_node_backward(option)
+        # ✅ Récupération de la distribution finale
+        last_col = tree.last_column  # liste des noeuds de maturité
+        S_final = np.array([node.underlying for node in last_col])
+        P_final = np.array([node.proba_totale for node in last_col])
+        P_final = P_final / P_final.sum()  # normalisation au cas où
 
-        # Prix Black–Scholes
         p_bs = black_scholes(S0=market.S0, K=K, T=maturity, r=market.r, sigma=market.sigma, type="call")
 
         prix_tree.append(p_tree)
         prix_bs.append(p_bs)
-        diffs.append(p_tree - p_bs)
 
     prix_tree = np.array(prix_tree)
     prix_bs = np.array(prix_bs)
-    diffs = np.array(diffs)
 
-    # --- Pentes (approximations numériques de ∂Prix/∂K) ---
-    slope_tree = np.gradient(prix_tree, Ks)
-    slope_bs = np.gradient(prix_bs, Ks)
+    # ✅ Slopes
+    slope_bs = np.gradient(prix_bs, Ks)  # BS lisse
 
-    # === GRAPHIQUE 1 : Prix et pentes ===
-    fig, ax1 = plt.subplots(figsize=(9,6))
-    ax1.set_title("Tree and Black–Scholes prices as functions of the strike")
-    ax1.set_xlabel("Strike K")
-    ax1.set_ylabel("Option Price")
-
-    ax1.plot(Ks, prix_bs, color="green", lw=2, label="BS")
-    ax1.plot(Ks, prix_tree, color="gold", lw=2, label="Tree")
-
-    # Second axe : différence Tree - BS
-    # ax2 = ax1.twinx()
-    # ax2.plot(Ks, diffs, color="red", lw=2, label="Tree - BS ->")
-    # ax2.set_ylabel("Tree - BS")
-
-    # Ajouter les pentes
-    ax1.plot(Ks, slope_bs, "g--", label="Slope BS ->")
-    ax1.plot(Ks, slope_tree, "y--", label="Slope Tree ->")
-
-    # Grilles et légendes
-    ax1.grid(True, ls="--", alpha=0.6)
-    ax1.legend(loc="upper left")
-    #ax2.legend(loc="upper right")
-
-    plt.tight_layout()
-    plt.show()
-
-    # === GRAPHIQUE 2 : Écart Tree - BS ===
-    plt.figure(figsize=(8,5))
-    plt.plot(Ks, diffs, color="red", label="Tree - BS")
-    plt.axhline(0, color="black", ls="--", lw=1)
-    plt.xlabel("Strike K")
-    plt.ylabel("Écart de prix")
-    plt.title("Écart entre le modèle Trinomial et Black–Scholes")
+    # ✅ Différence avant → paliers
+    slope_tree = np.diff(prix_tree) / np.diff(Ks)
+    slope_tree = np.insert(slope_tree, 0, slope_tree[0])
+    
+    # === Plot ===
+    plt.figure(figsize=(10,6))
+    plt.plot(Ks, slope_bs, "g--", label="Slope BS (lisse)")
+    plt.plot(Ks, slope_tree, "gold", linestyle="--", linewidth=2, label="Slope Tree (échelons)")
+    plt.ylim(-1.1, 0.1)
     plt.grid(True, ls="--", alpha=0.6)
     plt.legend()
-    plt.tight_layout()
+    plt.title("Comparaison des pentes (∂Prix/∂K)")
     plt.show()
-
 
 def test_avec_div2():
     # --- Dates importantes ---
@@ -397,6 +369,64 @@ def benchmark_recursive_vs_backward():
     plt.grid(True, ls='--', alpha=0.6)
     plt.show()
 
+def benchmark_python_only():
+
+    # ---- 1) Valeurs de N testées (log-spaced) ----
+    N_values = np.unique(np.logspace(0, 3, num=100, dtype=int))  # 1 → 1000
+    times = []
+
+    # ---- 2) Paramètres constants ----
+    S0, K, r, sigma, T = 100, 100, 0.03, 0.2, 1
+    option = Option(K=K, mat=T, opt_type="call", style="european")
+
+    # ---- 3) Mesure des temps ----
+    for N in N_values:
+        dt = T / N
+        market = Market(S0=S0, r=r, sigma=sigma)
+        tree = Tree(market, N=N, delta_t=dt)
+
+        t0 = time.time()
+        tree.tree_construction2(option)
+        tree.price_option_recursive(option)
+        t1 = time.time()
+
+        times.append(t1 - t0)
+
+        print(f"N={N:4d}  →  {t1 - t0:.5f} s")
+
+    # ---- 4) Tri pour graphe propre ----
+    N_values_sorted, times_sorted = zip(*sorted(zip(N_values, times)))
+    N_values_sorted = np.array(N_values_sorted)
+    times_sorted = np.array(times_sorted)
+
+    # ---- 5) Graphe log-log ----
+    plt.figure(figsize=(10,6))
+    plt.loglog(N_values_sorted, times_sorted, marker='o', lw=2, color="#e67e22",
+               label="Python (Trinomial)")
+
+    # ---- 6) Droites de complexité O(N), O(N^1.5), O(N²) ----
+    ref_index = 3   # point d’ancrage
+    ref_N = N_values_sorted[ref_index]
+    ref_T = times_sorted[ref_index]
+
+    ON1 =  ref_T * (N_values_sorted / ref_N)**1
+    ON15 = ref_T * (N_values_sorted / ref_N)**1.5
+    ON2 =  ref_T * (N_values_sorted / ref_N)**2
+
+    plt.loglog(N_values_sorted, ON2,  '--', color="gray",  lw=2, label="~O(N²)")
+    plt.loglog(N_values_sorted, ON15, '--', color="blue",  lw=2, label="~O(N^{1.5})")
+    plt.loglog(N_values_sorted, ON1,  '--', color="black", lw=2, label="~O(N)")
+
+    # ---- 7) Style ----
+    plt.xlabel("Nb steps (N)")
+    plt.ylabel("Time (s)")
+    plt.title("Run time vs number of steps (Python only)")
+    plt.grid(True, which="both", ls="--", alpha=0.4)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     test_avec_div2() 
     #convergence_recursive() #=> Convergence de l'arbre récursif vers black scholes
@@ -404,8 +434,8 @@ if __name__ == "__main__":
     #test_plot_tree()
     #plot_trinomial_tree(S0=100, r=0.1, sigma=0.2,N=60, delta_t=1/60,K=80, mat=1, opt_type="call", style="european",isDiv=True, div=6, date_div=datetime(2025, 12, 9),max_cols=100, annotate=False)
     #plot_gamma_vs_shift()
-    #benchmark_recursive_vs_backward() => Comparaison des temps de calcul entre les deux méthodes
-
+    #benchmark_recursive_vs_backward() #=> Comparaison des temps de calcul entre les deux méthodes
+    #benchmark_python_only()
 
 
 #si on demande le vega on doit trouver la variation de prix pour 1%
