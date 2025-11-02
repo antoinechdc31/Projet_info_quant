@@ -94,7 +94,6 @@ with tab1:
         vega_rec = OptionVegaTreeRecurs(market, tree, option, 0.01)
         volga_rec = OptionVommaTreeRecurs(market, tree, option, 0.01)
 
-
         st.subheader("Sensibilités (Grecques)")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Δ Delta", f"{delta:.4f}")
